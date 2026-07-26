@@ -11,8 +11,6 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import ProyectoDetalle from './components/ProyectoDetalle';
 
-import './App.css';
-
 function PrivateRoute({ children }) {
   const [autenticado, setAutenticado] = useState(null);
 
