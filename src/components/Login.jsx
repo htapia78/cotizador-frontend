@@ -1,160 +1,104 @@
-/**
- * Componente Login
- * Login y registro de usuarios
- */
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authAPI } from '../api';
-import './Login.css';
 
 export default function Login() {
-  const [mode, setMode] = useState('login'); // login | registro
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [nombreEmpresa, setNombreEmpresa] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-
     try {
-      const response = await authAPI.login(email, password);
-      localStorage.setItem('access_token', response.data.access_token);
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await response.json();
+      localStorage.setItem('access_token', data.access_token);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Error al iniciar sesión');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegistro = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      await authAPI.registro(email, password, nombreEmpresa);
-      // Auto-login después del registro
-      const loginResponse = await authAPI.login(email, password);
-      localStorage.setItem('access_token', loginResponse.data.access_token);
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Error al registrar');
-    } finally {
-      setLoading(false);
+      setError('Error al iniciar sesión');
     }
   };
 
   return (
-    <div className="login-container">
-      <div className="login-box">
-        <h1>⚡ Cotizador de Obras Eléctricas</h1>
+    <div style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #1c2d4f 0%, #2563a8 100%)',
+      fontFamily: 'Arial, sans-serif'
+    }}>
+      <div style={{
+        background: 'white',
+        padding: '40px',
+        borderRadius: '8px',
+        width: '100%',
+        maxWidth: '400px',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+      }}>
+        <h1 style={{ textAlign: 'center', color: '#1c2d4f' }}>⚡ Cotizador</h1>
+        
+        <form onSubmit={handleLogin}>
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Email:</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="tu@email.com"
+              required
+              style={{
+                width: '100%',
+                padding: '10px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
 
-        {mode === 'login' ? (
-          <form onSubmit={handleLogin}>
-            <h2>Iniciar Sesión</h2>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Contraseña:</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              style={{
+                width: '100%',
+                padding: '10px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
 
-            {error && <div className="error-message">{error}</div>}
+          {error && <div style={{ color: 'red', marginBottom: '15px' }}>{error}</div>}
 
-            <div className="form-group">
-              <label>Email:</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="tu@email.com"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Contraseña:</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-              />
-            </div>
-
-            <button type="submit" disabled={loading}>
-              {loading ? 'Ingresando...' : 'Iniciar Sesión'}
-            </button>
-
-            <p className="mode-switch">
-              ¿No tienes cuenta?{' '}
-              <button
-                type="button"
-                onClick={() => setMode('registro')}
-                className="link-button"
-              >
-                Registrate aquí
-              </button>
-            </p>
-          </form>
-        ) : (
-          <form onSubmit={handleRegistro}>
-            <h2>Crear Cuenta</h2>
-
-            {error && <div className="error-message">{error}</div>}
-
-            <div className="form-group">
-              <label>Email:</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="tu@email.com"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Contraseña:</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                minLength="6"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Nombre de Empresa:</label>
-              <input
-                type="text"
-                value={nombreEmpresa}
-                onChange={(e) => setNombreEmpresa(e.target.value)}
-                required
-                placeholder="APEXCORE S.A.S."
-              />
-            </div>
-
-            <button type="submit" disabled={loading}>
-              {loading ? 'Registrando...' : 'Crear Cuenta'}
-            </button>
-
-            <p className="mode-switch">
-              ¿Ya tienes cuenta?{' '}
-              <button
-                type="button"
-                onClick={() => setMode('login')}
-                className="link-button"
-              >
-                Inicia sesión aquí
-              </button>
-            </p>
-          </form>
-        )}
+          <button
+            type="submit"
+            style={{
+              width: '100%',
+              padding: '12px',
+              background: '#2563a8',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: '16px'
+            }}
+          >
+            Iniciar Sesión
+          </button>
+        </form>
       </div>
     </div>
   );
