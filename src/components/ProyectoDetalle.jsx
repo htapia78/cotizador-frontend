@@ -27,80 +27,122 @@ export default function ProyectoDetalle() {
     }
   };
 
-  if (!proyecto) return <div style={{ padding: '20px' }}>Cargando...</div>;
+  if (!proyecto) return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
+      color: '#999'
+    }}>
+      Cargando...
+    </div>
+  );
+
+  const tabsConfig = [
+    { id: 'zonas', label: 'Zonas', icon: '📍' },
+    { id: 'bocas', label: 'Conteo de Bocas', icon: '🔌' },
+    { id: 'recetas', label: 'Recetas', icon: '📋' },
+    { id: 'computo', label: 'Cómputo', icon: '🧮' }
+  ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)' }}>
+      {/* HEADER */}
       <header style={{
         background: 'linear-gradient(135deg, #1c2d4f 0%, #2563a8 100%)',
         color: 'white',
-        padding: '24px'
+        padding: '32px 24px',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+        borderBottom: '3px solid #c8a84b'
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '20px' }}>
           <button
             onClick={() => navigate('/dashboard')}
             style={{
-              background: 'rgba(255,255,255,0.2)',
+              background: 'rgba(255,255,255,0.15)',
               color: 'white',
               border: '1px solid rgba(255,255,255,0.3)',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              cursor: 'pointer'
+              padding: '10px 16px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              transition: 'all 0.2s',
+              fontSize: '14px'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = 'rgba(255,255,255,0.25)';
+              e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = 'rgba(255,255,255,0.15)';
+              e.target.style.boxShadow = 'none';
             }}
           >
             ← Volver
           </button>
           <div>
-            <h1 style={{ margin: 0 }}>{proyecto.nombre}</h1>
-            <p style={{ margin: '5px 0 0 0', opacity: 0.9 }}>Cliente: {proyecto.cliente}</p>
+            <h1 style={{ margin: 0, fontSize: '28px', fontWeight: '700' }}>⚡ {proyecto.nombre}</h1>
+            <p style={{ margin: '8px 0 0 0', opacity: 0.9, fontSize: '14px' }}>Cliente: {proyecto.cliente}</p>
           </div>
         </div>
       </header>
 
+      {/* TABS NAVIGATION */}
       <nav style={{
         background: 'white',
         borderBottom: '2px solid #e5e7eb',
         display: 'flex',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        overflowX: 'auto'
       }}>
-        {['zonas', 'bocas', 'recetas', 'computo'].map(t => (
+        {tabsConfig.map(t => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={t.id}
+            onClick={() => setTab(t.id)}
             style={{
-              flex: 0,
-              padding: '16px 24px',
+              flex: '0 0 auto',
+              padding: '18px 24px',
               border: 'none',
               background: 'none',
               cursor: 'pointer',
-              fontWeight: 500,
-              color: tab === t ? '#2563a8' : '#6b7280',
-              borderBottom: tab === t ? '2px solid #2563a8' : '2px solid transparent',
-              textTransform: 'capitalize'
+              fontWeight: tab === t.id ? '600' : '500',
+              color: tab === t.id ? '#c8a84b' : '#6b7280',
+              borderBottom: tab === t.id ? '3px solid #c8a84b' : '3px solid transparent',
+              transition: 'all 0.2s',
+              fontSize: '14px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseEnter={(e) => {
+              if (tab !== t.id) e.target.style.color = '#1c2d4f';
+            }}
+            onMouseLeave={(e) => {
+              if (tab !== t.id) e.target.style.color = '#6b7280';
             }}
           >
-            {t === 'bocas' ? 'Conteo de Bocas' : t === 'computo' ? 'Cómputo' : t.charAt(0).toUpperCase() + t.slice(1)}
+            {t.icon} {t.label}
           </button>
         ))}
       </nav>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '30px 20px' }}>
+      {/* CONTENT */}
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
         {tab === 'zonas' && <Zonas proyectoId={id} />}
         {tab === 'bocas' && (
-          <div style={{ background: 'white', padding: '24px', borderRadius: '8px' }}>
-            <h2>Conteo de Bocas</h2>
+          <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+            <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>🔌 Conteo de Bocas</h2>
             <p style={{ color: '#999' }}>En desarrollo...</p>
           </div>
         )}
         {tab === 'recetas' && (
-          <div style={{ background: 'white', padding: '24px', borderRadius: '8px' }}>
-            <h2>Recetas</h2>
+          <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+            <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>📋 Recetas</h2>
             <p style={{ color: '#999' }}>En desarrollo...</p>
           </div>
         )}
         {tab === 'computo' && (
-          <div style={{ background: 'white', padding: '24px', borderRadius: '8px' }}>
-            <h2>Cómputo de Materiales</h2>
+          <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+            <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>🧮 Cómputo de Materiales</h2>
             <p style={{ color: '#999' }}>En desarrollo...</p>
           </div>
         )}
