@@ -1,16 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+
+const TIPOS_BOCA = [
+  { id: 1, nombre: 'Boca de Luz' },
+  { id: 2, nombre: 'Boca Aplique' },
+  { id: 3, nombre: 'Boca Emergencia' },
+  { id: 4, nombre: 'Tomacorriente 10A' },
+  { id: 5, nombre: 'Tomacorriente AA' },
+  { id: 6, nombre: 'Boca TV' },
+  { id: 7, nombre: 'Boca Teléfono' },
+  { id: 8, nombre: 'Acometida TV' },
+];
 
 export default function Bocas({ proyectoId }) {
   const [zonas, setZonas] = useState([]);
-  const [tipos, setTipos] = useState([
-    { id: 1, nombre: 'Toma Monofásica' },
-    { id: 2, nombre: 'Aplique' },
-    { id: 3, nombre: 'Punto Luz' }
-  ]);
   const [conteos, setConteos] = useState({});
   const storageKey = `bocas-${proyectoId}`;
 
   useEffect(() => {
+    cargarDatos();
+  }, [proyectoId, storageKey]);
+
+  const cargarDatos = () => {
     // Cargar zonas
     const zonasGuardadas = localStorage.getItem(`zonas-${proyectoId}`);
     if (zonasGuardadas) {
@@ -22,7 +32,7 @@ export default function Bocas({ proyectoId }) {
     if (conteosGuardados) {
       setConteos(JSON.parse(conteosGuardados));
     }
-  }, [proyectoId, storageKey]);
+  };
 
   const handleCantidadChange = (zonaId, tipoId, cantidad) => {
     const key = `${zonaId}-${tipoId}`;
@@ -57,9 +67,9 @@ export default function Bocas({ proyectoId }) {
           }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#1c2d4f' }}>Zona</th>
-                {tipos.map(tipo => (
-                  <th key={tipo.id} style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f' }}>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#1c2d4f', minWidth: '120px' }}>Zona</th>
+                {TIPOS_BOCA.map(tipo => (
+                  <th key={tipo.id} style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f', minWidth: '130px', fontSize: '12px' }}>
                     {tipo.nombre}
                   </th>
                 ))}
@@ -69,7 +79,7 @@ export default function Bocas({ proyectoId }) {
               {zonas.map(zona => (
                 <tr key={zona.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                   <td style={{ padding: '12px', fontWeight: '500', color: '#1c2d4f' }}>{zona.nombre}</td>
-                  {tipos.map(tipo => (
+                  {TIPOS_BOCA.map(tipo => (
                     <td key={`${zona.id}-${tipo.id}`} style={{ padding: '12px', textAlign: 'center' }}>
                       <input
                         type="number"
@@ -82,7 +92,7 @@ export default function Bocas({ proyectoId }) {
                           border: '1px solid #d1d5db',
                           borderRadius: '6px',
                           textAlign: 'center',
-                          fontSize: '14px'
+                          fontSize: '13px'
                         }}
                       />
                     </td>
