@@ -1,109 +1,89 @@
-/**
- * Bocas - Ingresar cantidad de bocas por zona
- */
-
-import React, { useEffect, useState } from 'react';
-import { zonasAPI, tiposBocaAPI, conteoBocasAPI } from '../api';
-import './Bocas.css';
+import React, { useState, useEffect } from 'react';
 
 export default function Bocas({ proyectoId }) {
   const [zonas, setZonas] = useState([]);
-  const [tiposBoca, setTiposBoca] = useState([]);
-  const [conteos, setConteos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tipos, setTipos] = useState([
+    { id: 1, nombre: 'Toma Monofásica' },
+    { id: 2, nombre: 'Aplique' },
+    { id: 3, nombre: 'Punto Luz' }
+  ]);
+  const [conteos, setConteos] = useState({});
+  const storageKey = `bocas-${proyectoId}`;
 
   useEffect(() => {
-    cargarDatos();
-  }, [proyectoId]);
-
-  const cargarDatos = async () => {
-    try {
-      const [zonasRes, tiposRes, conteosRes] = await Promise.all([
-        zonasAPI.listar(proyectoId),
-        tiposBocaAPI.listar(proyectoId),
-        conteoBocasAPI.listar(proyectoId)
-      ]);
-      setZonas(zonasRes.data);
-      setTiposBoca(tiposRes.data);
-      setConteos(conteosRes.data);
-    } catch (err) {
-      console.error('Error al cargar datos:', err);
-    } finally {
-      setLoading(false);
+    // Cargar zonas
+    const zonasGuardadas = localStorage.getItem(`zonas-${proyectoId}`);
+    if (zonasGuardadas) {
+      setZonas(JSON.parse(zonasGuardadas));
     }
-  };
 
-  const handleCantidadChange = async (zonaId, tipoId, cantidad) => {
-    try {
-      // Buscar si ya existe este conteo
-      const existing = conteos.find(
-        c => c.zona_id === zonaId && c.tipo_boca_id === tipoId
-      );
-
-      if (existing) {
-        if (cantidad === 0) {
-          // No hacer nada, solo actualizar localmente
-          setConteos(conteos.filter(c => c.id !== existing.id));
-        } else {
-          const res = await conteoBocasAPI.actualizar(existing.id, cantidad);
-          setConteos(conteos.map(c =>
-            c.id === existing.id ? res.data : c
-          ));
-        }
-      } else if (cantidad > 0) {
-        const res = await conteoBocasAPI.crear(proyectoId, zonaId, tipoId, cantidad);
-        setConteos([...conteos, res.data]);
-      }
-    } catch (err) {
-      console.error('Error al actualizar cantidad:', err);
+    // Cargar conteos
+    const conteosGuardados = localStorage.getItem(storageKey);
+    if (conteosGuardados) {
+      setConteos(JSON.parse(conteosGuardados));
     }
+  }, [proyectoId, storageKey]);
+
+  const handleCantidadChange = (zonaId, tipoId, cantidad) => {
+    const key = `${zonaId}-${tipoId}`;
+    const conteosActualizados = { ...conteos };
+    if (cantidad === 0 || cantidad === '') {
+      delete conteosActualizados[key];
+    } else {
+      conteosActualizados[key] = parseInt(cantidad) || 0;
+    }
+    setConteos(conteosActualizados);
+    localStorage.setItem(storageKey, JSON.stringify(conteosActualizados));
   };
 
   const getCantidad = (zonaId, tipoId) => {
-    const conteo = conteos.find(
-      c => c.zona_id === zonaId && c.tipo_boca_id === tipoId
-    );
-    return conteo?.cantidad || 0;
+    const key = `${zonaId}-${tipoId}`;
+    return conteos[key] || '';
   };
 
-  if (loading) return <div className="loading">Cargando...</div>;
-
   return (
-    <div className="bocas-container">
-      <h2>Conteo de Bocas por Zona</h2>
+    <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+      <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>🔌 Conteo de Bocas</h2>
+      <p style={{ color: '#666', marginBottom: '24px' }}>Ingresa la cantidad de bocas por zona y tipo</p>
 
       {zonas.length === 0 ? (
-        <p className="empty">Primero crea zonas en la pestaña anterior.</p>
-      ) : tiposBoca.length === 0 ? (
-        <p className="empty">Primero crea tipos de boca en la pestaña Recetas.</p>
+        <p style={{ color: '#999', textAlign: 'center', padding: '40px' }}>Crea zonas primero en la pestaña anterior</p>
       ) : (
-        <div className="bocas-table-wrapper">
-          <table className="bocas-table">
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            background: 'white'
+          }}>
             <thead>
-              <tr>
-                <th>Zona</th>
-                {tiposBoca.map((tipo) => (
-                  <th key={tipo.id}>{tipo.nombre}</th>
+              <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#1c2d4f' }}>Zona</th>
+                {tipos.map(tipo => (
+                  <th key={tipo.id} style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f' }}>
+                    {tipo.nombre}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {zonas.map((zona) => (
-                <tr key={zona.id}>
-                  <td className="zona-name">{zona.nombre}</td>
-                  {tiposBoca.map((tipo) => (
-                    <td key={`${zona.id}-${tipo.id}`}>
+              {zonas.map(zona => (
+                <tr key={zona.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <td style={{ padding: '12px', fontWeight: '500', color: '#1c2d4f' }}>{zona.nombre}</td>
+                  {tipos.map(tipo => (
+                    <td key={`${zona.id}-${tipo.id}`} style={{ padding: '12px', textAlign: 'center' }}>
                       <input
                         type="number"
                         min="0"
                         value={getCantidad(zona.id, tipo.id)}
-                        onChange={(e) =>
-                          handleCantidadChange(
-                            zona.id,
-                            tipo.id,
-                            parseInt(e.target.value) || 0
-                          )
-                        }
+                        onChange={(e) => handleCantidadChange(zona.id, tipo.id, e.target.value)}
+                        style={{
+                          width: '70px',
+                          padding: '8px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          textAlign: 'center',
+                          fontSize: '14px'
+                        }}
                       />
                     </td>
                   ))}
