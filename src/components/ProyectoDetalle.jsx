@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Zonas from './Zonas';
 import Bocas from './Bocas';
+import Recetas from './Recetas';
 
 export default function ProyectoDetalle() {
   const { id } = useParams();
@@ -135,7 +136,7 @@ export default function ProyectoDetalle() {
             <p style={{ color: '#999' }}>En desarrollo...</p>
           </div>
         )}
-        {tab === 'recetas' && (
+        {tab === 'recetas' && <Recetas proyectoId={id} />}
           <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
             <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>📋 Recetas</h2>
             <p style={{ color: '#999' }}>En desarrollo...</p>
