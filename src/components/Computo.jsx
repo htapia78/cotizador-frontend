@@ -1,114 +1,128 @@
-/**
- * Computo - Vista del cómputo calculado automáticamente
- */
-
-import React, { useEffect, useState } from 'react';
-import { computoAPI } from '../api';
-import './Computo.css';
+import React, { useState, useEffect } from 'react';
 
 export default function Computo({ proyectoId }) {
-  const [computo, setComputo] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [materiales, setMateriales] = useState([]);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    cargarComputo();
+    calcularComputo();
   }, [proyectoId]);
 
-  const cargarComputo = async () => {
-    try {
-      const res = await computoAPI.calcular(proyectoId);
-      setComputo(res.data);
-    } catch (err) {
-      console.error('Error al calcular cómputo:', err);
-    } finally {
-      setLoading(false);
-    }
+  const calcularComputo = () => {
+    // Cargar datos de localStorage
+    const bocasStorageKey = `bocas-${proyectoId}`;
+    const recetasStorageKey = `recetas-${proyectoId}`;
+    const tiposStorageKey = `tipos-${proyectoId}`;
+
+    const conteos = JSON.parse(localStorage.getItem(bocasStorageKey) || '{}');
+    const recetas = JSON.parse(localStorage.getItem(recetasStorageKey) || '{}');
+    const tipos = JSON.parse(localStorage.getItem(tiposStorageKey) || '[]');
+
+    // Calcular totales por material
+    const materiales_calculados = {};
+
+    // Iterar sobre conteos (zona-tipo -> cantidad)
+    Object.entries(conteos).forEach(([key, cantidad]) => {
+      const [zonaId, tipoId] = key.split('-').map(Number);
+      
+      // Buscar recetas para este tipo
+      const recetasDeTipo = recetas[tipoId] || [];
+      
+      recetasDeTipo.forEach(material => {
+        const materialKey = material.nombre;
+        const cantidadTotal = cantidad * material.cantidad;
+        
+        if (!materiales_calculados[materialKey]) {
+          materiales_calculados[materialKey] = {
+            nombre: material.nombre,
+            cantidad: 0,
+            unidad: material.unidad || 'm'
+          };
+        }
+        materiales_calculados[materialKey].cantidad += cantidadTotal;
+      });
+    });
+
+    // Convertir a array y filtrar zeros
+    const materialesArray = Object.values(materiales_calculados)
+      .filter(m => m.cantidad > 0)
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    setMateriales(materialesArray);
+    const totalCalc = materialesArray.reduce((sum, m) => sum + (m.cantidad || 0), 0);
+    setTotal(totalCalc);
   };
 
-  const categorias = [...new Set(computo.map(c => c.categoria))].sort();
-  const computoFiltrado = filtroCategoria
-    ? computo.filter(c => c.categoria === filtroCategoria)
-    : computo;
-
-  const totalMateriales = computoFiltrado.reduce((sum, c) => sum + (c.subtotal || 0), 0);
-
-  if (loading) return <div className="loading">Calculando cómputo...</div>;
-
   return (
-    <div className="computo-container">
-      <h2>Cómputo de Materiales</h2>
-
-      <div className="computo-header">
-        <button onClick={cargarComputo} className="btn-secondary">
+    <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div>
+          <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>🧮 Cómputo de Materiales</h2>
+          <p style={{ color: '#666' }}>Total de materiales necesarios para el proyecto</p>
+        </div>
+        <button
+          onClick={calcularComputo}
+          style={{
+            background: '#2563a8',
+            color: 'white',
+            padding: '10px 20px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
           🔄 Recalcular
         </button>
-
-        <div className="filtro">
-          <label>Filtrar por categoría:</label>
-          <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
-            <option value="">Todas</option>
-            {categorias.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
-      {computoFiltrado.length === 0 ? (
-        <p className="empty">
-          No hay materiales calculados. Ingresa bocas en la pestaña anterior.
+      {materiales.length === 0 ? (
+        <p style={{ color: '#999', textAlign: 'center', padding: '40px' }}>
+          Define zonas, bocas y recetas para ver el cómputo
         </p>
       ) : (
-        <div className="computo-table-wrapper">
-          <table className="computo-table">
-            <thead>
-              <tr>
-                <th>Categoría</th>
-                <th>Material</th>
-                <th>Unidad</th>
-                <th>Calculada</th>
-                <th>Ajuste</th>
-                <th>Final</th>
-                <th>Precio Unit.</th>
-                <th>Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {computoFiltrado.map((item, idx) => (
-                <tr key={idx}>
-                  <td>{item.categoria}</td>
-                  <td className="material-name">{item.material_nombre}</td>
-                  <td>{item.material_unidad}</td>
-                  <td className="qty">{item.cantidad_calculada.toFixed(2)}</td>
-                  <td className="qty">{item.cantidad_ajuste.toFixed(2)}</td>
-                  <td className="qty-final">
-                    <strong>{item.cantidad_final.toFixed(2)}</strong>
-                  </td>
-                  <td className="price">
-                    {item.precio_unitario ? `$${item.precio_unitario.toFixed(2)}` : '-'}
-                  </td>
-                  <td className="price">
-                    {item.subtotal ? `$${item.subtotal.toFixed(2)}` : '$0.00'}
-                  </td>
+        <>
+          <div style={{ overflowX: 'auto', marginBottom: '24px' }}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse'
+            }}>
+              <thead>
+                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#1c2d4f' }}>Material</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f' }}>Cantidad</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f' }}>Unidad</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {computoFiltrado.length > 0 && (
-        <div className="computo-total">
-          <div className="total-box">
-            <strong>TOTAL MATERIALES</strong>
-            <span className="total-value">
-              ${totalMateriales.toFixed(2)}
-            </span>
+              </thead>
+              <tbody>
+                {materiales.map((material, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={{ padding: '12px', color: '#1c2d4f', fontWeight: '500' }}>{material.nombre}</td>
+                    <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>
+                      {material.cantidad.toFixed(2)}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>
+                      {material.unidad}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+
+          <div style={{
+            background: 'linear-gradient(135deg, #1c2d4f 0%, #2563a8 100%)',
+            color: 'white',
+            padding: '20px 24px',
+            borderRadius: '10px',
+            textAlign: 'right'
+          }}>
+            <p style={{ margin: '0 0 8px 0', opacity: 0.9 }}>TOTAL DE MATERIALES</p>
+            <h3 style={{ margin: 0, fontSize: '24px', fontWeight: '700' }}>
+              {total.toFixed(2)} unidades
+            </h3>
+          </div>
+        </>
       )}
     </div>
   );
