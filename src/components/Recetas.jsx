@@ -104,8 +104,6 @@ export default function Recetas({ proyectoId }) {
   const [nuevaCantidad, setNuevaCantidad] = useState('');
   const storageKey = `recetas-${proyectoId}`;
 
-  // Cargar recetas al montar
-  // Cargar recetas al montar
   useEffect(() => {
     const datos = localStorage.getItem(storageKey);
     if (datos) {
@@ -118,13 +116,11 @@ export default function Recetas({ proyectoId }) {
         setMateriales(RECETAS_INICIALES);
       }
     } else {
-      // Primera vez: cargar predefinidas
       localStorage.setItem(storageKey, JSON.stringify(RECETAS_INICIALES));
       setMateriales(RECETAS_INICIALES);
     }
   }, [storageKey]);
 
-  // Acceso a materiales asegurando conversión de tipo
   const getMateriales = (tipoId) => {
     return materiales[tipoId] || materiales[`${tipoId}`] || [];
   };
@@ -134,12 +130,13 @@ export default function Recetas({ proyectoId }) {
     if (!nuevoMaterial.trim() || !nuevaCantidad) return;
 
     const tipoId = tipoSeleccionado;
-    const materialesDelTipo = materiales[tipoId] || [];
+    const materialesDelTipo = getMateriales(tipoId);
     
     const nuevoMatObj = {
       id: Date.now(),
       nombre: nuevoMaterial,
-      cantidad: parseFloat(nuevaCantidad)
+      cantidad: parseFloat(nuevaCantidad),
+      unidad: 'un'
     };
 
     const materialesActualizados = {
@@ -155,9 +152,9 @@ export default function Recetas({ proyectoId }) {
 
   const handleEliminar = (tipoId, materialId) => {
     const zona = TIPOS_BOCA.find(t => t.id === tipoId);
-    const material = (materiales[tipoId] || []).find(m => m.id === materialId);
+    const material = getMateriales(tipoId).find(m => m.id === materialId);
     if (window.confirm(`¿Eliminar "${material.nombre}" de ${zona.nombre}? Esta acción no se puede deshacer.`)) {
-      const materialesDelTipo = getMateriales(tipoId);).filter(m => m.id !== materialId);
+      const materialesDelTipo = getMateriales(tipoId).filter(m => m.id !== materialId);
       const materialesActualizados = { ...materiales, [tipoId]: materialesDelTipo };
       setMateriales(materialesActualizados);
       localStorage.setItem(storageKey, JSON.stringify(materialesActualizados));
