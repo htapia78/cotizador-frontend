@@ -3,22 +3,39 @@ import React, { useState, useEffect } from 'react';
 export default function Zonas({ proyectoId }) {
   const [zonas, setZonas] = useState([]);
   const [nombre, setNombre] = useState('');
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const storageKey = `zonas-${proyectoId}`;
 
   useEffect(() => {
-    // Simulamos algunas zonas de ejemplo
-    setZonas([
-      { id: 1, nombre: 'Planta Baja', descripcion: 'Piso 0' },
-      { id: 2, nombre: 'Primer Piso', descripcion: 'Piso 1' }
-    ]);
-  }, [proyectoId]);
+    // Cargar zonas del localStorage
+    const zonasGuardadas = localStorage.getItem(storageKey);
+    if (zonasGuardadas) {
+      setZonas(JSON.parse(zonasGuardadas));
+    } else {
+      // Si no hay, cargar zonas de ejemplo
+      const zonasDefault = [
+        { id: 1, nombre: 'Planta Baja', descripcion: 'Piso 0' },
+        { id: 2, nombre: 'Primer Piso', descripcion: 'Piso 1' }
+      ];
+      setZonas(zonasDefault);
+      localStorage.setItem(storageKey, JSON.stringify(zonasDefault));
+    }
+  }, [proyectoId, storageKey]);
 
   const handleAgregar = (e) => {
     e.preventDefault();
     if (nombre.trim()) {
-      setZonas([...zonas, { id: Date.now(), nombre, descripcion: '' }]);
+      const nuevaZona = { id: Date.now(), nombre, descripcion: '' };
+      const zonasActualizadas = [...zonas, nuevaZona];
+      setZonas(zonasActualizadas);
+      localStorage.setItem(storageKey, JSON.stringify(zonasActualizadas));
       setNombre('');
     }
+  };
+
+  const handleEliminar = (id) => {
+    const zonasActualizadas = zonas.filter(z => z.id !== id);
+    setZonas(zonasActualizadas);
+    localStorage.setItem(storageKey, JSON.stringify(zonasActualizadas));
   };
 
   return (
@@ -62,10 +79,29 @@ export default function Zonas({ proyectoId }) {
             background: '#f9fafb',
             padding: '15px',
             borderRadius: '6px',
-            borderLeft: '4px solid #2563a8'
+            borderLeft: '4px solid #2563a8',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
           }}>
-            <h4 style={{ margin: '0 0 5px 0' }}>{zona.nombre}</h4>
-            <p style={{ margin: 0, color: '#999', fontSize: '14px' }}>{zona.descripcion}</p>
+            <div>
+              <h4 style={{ margin: '0 0 5px 0' }}>{zona.nombre}</h4>
+              <p style={{ margin: 0, color: '#999', fontSize: '14px' }}>{zona.descripcion}</p>
+            </div>
+            <button
+              onClick={() => handleEliminar(zona.id)}
+              style={{
+                background: '#dc2626',
+                color: 'white',
+                padding: '5px 10px',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              ✕
+            </button>
           </div>
         ))}
       </div>
