@@ -105,14 +105,15 @@ export default function Recetas({ proyectoId }) {
   const storageKey = `recetas-${proyectoId}`;
 
   // Cargar recetas al montar
+  // Cargar recetas al montar
   useEffect(() => {
     const datos = localStorage.getItem(storageKey);
     if (datos) {
       try {
-        setMateriales(JSON.parse(datos));
+        const parsed = JSON.parse(datos);
+        setMateriales(parsed);
       } catch (e) {
         console.error('Error al cargar recetas:', e);
-        // Si hay error, usar las predefinidas
         localStorage.setItem(storageKey, JSON.stringify(RECETAS_INICIALES));
         setMateriales(RECETAS_INICIALES);
       }
@@ -122,6 +123,11 @@ export default function Recetas({ proyectoId }) {
       setMateriales(RECETAS_INICIALES);
     }
   }, [storageKey]);
+
+  // Acceso a materiales asegurando conversión de tipo
+  const getMateriales = (tipoId) => {
+    return materiales[tipoId] || materiales[`${tipoId}`] || [];
+  };
 
   const handleAgregar = (e) => {
     e.preventDefault();
@@ -151,14 +157,14 @@ export default function Recetas({ proyectoId }) {
     const zona = TIPOS_BOCA.find(t => t.id === tipoId);
     const material = (materiales[tipoId] || []).find(m => m.id === materialId);
     if (window.confirm(`¿Eliminar "${material.nombre}" de ${zona.nombre}? Esta acción no se puede deshacer.`)) {
-      const materialesDelTipo = (materiales[tipoId] || []).filter(m => m.id !== materialId);
+      const materialesDelTipo = getMateriales(tipoId);).filter(m => m.id !== materialId);
       const materialesActualizados = { ...materiales, [tipoId]: materialesDelTipo };
       setMateriales(materialesActualizados);
       localStorage.setItem(storageKey, JSON.stringify(materialesActualizados));
     }
   };
 
-  const materialesDelTipo = materiales[tipoSeleccionado] || [];
+  const materialesDelTipo = getMateriales(tipoSeleccionado);
   const tipoActual = TIPOS_BOCA.find(t => t.id === tipoSeleccionado);
 
   return (
