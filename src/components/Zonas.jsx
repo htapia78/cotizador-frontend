@@ -1,107 +1,73 @@
-/**
- * Zonas - Crear y gestionar zonas del proyecto
- */
-
-import React, { useEffect, useState } from 'react';
-import { zonasAPI } from '../api';
-import './Zonas.css';
+import React, { useState, useEffect } from 'react';
 
 export default function Zonas({ proyectoId }) {
   const [zonas, setZonas] = useState([]);
   const [nombre, setNombre] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [loading, setLoading] = useState(true);
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   useEffect(() => {
-    cargarZonas();
+    // Simulamos algunas zonas de ejemplo
+    setZonas([
+      { id: 1, nombre: 'Planta Baja', descripcion: 'Piso 0' },
+      { id: 2, nombre: 'Primer Piso', descripcion: 'Piso 1' }
+    ]);
   }, [proyectoId]);
 
-  const cargarZonas = async () => {
-    try {
-      const res = await zonasAPI.listar(proyectoId);
-      setZonas(res.data);
-    } catch (err) {
-      console.error('Error al cargar zonas:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCrear = async (e) => {
+  const handleAgregar = (e) => {
     e.preventDefault();
-    try {
-      const res = await zonasAPI.crear(proyectoId, nombre, descripcion);
-      setZonas([...zonas, res.data]);
+    if (nombre.trim()) {
+      setZonas([...zonas, { id: Date.now(), nombre, descripcion: '' }]);
       setNombre('');
-      setDescripcion('');
-    } catch (err) {
-      console.error('Error al crear zona:', err);
     }
   };
-
-  const handleEliminar = async (zonaId) => {
-    if (window.confirm('¿Eliminar esta zona?')) {
-      try {
-        await zonasAPI.eliminar(zonaId);
-        setZonas(zonas.filter(z => z.id !== zonaId));
-      } catch (err) {
-        console.error('Error al eliminar:', err);
-      }
-    }
-  };
-
-  if (loading) return <div className="loading">Cargando zonas...</div>;
 
   return (
-    <div className="zonas-container">
+    <div style={{ background: 'white', padding: '24px', borderRadius: '8px' }}>
       <h2>Zonas del Proyecto</h2>
-
-      <form onSubmit={handleCrear} className="form-zona">
-        <div className="form-group">
-          <label>Nombre de la Zona:</label>
+      
+      <form onSubmit={handleAgregar} style={{ marginBottom: '20px', background: '#f9fafb', padding: '15px', borderRadius: '6px' }}>
+        <div style={{ display: 'flex', gap: '10px' }}>
           <input
             type="text"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
-            required
-            placeholder="Ej: Planta Baja, Piso 1"
+            placeholder="Ej: Planta Baja"
+            style={{
+              flex: 1,
+              padding: '10px',
+              border: '1px solid #ddd',
+              borderRadius: '4px'
+            }}
           />
+          <button
+            type="submit"
+            style={{
+              background: '#2563a8',
+              color: 'white',
+              padding: '10px 20px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            + Agregar
+          </button>
         </div>
-
-        <div className="form-group">
-          <label>Descripción (opcional):</label>
-          <input
-            type="text"
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Ej: Primer piso del hotel"
-          />
-        </div>
-
-        <button type="submit" className="btn-primary">
-          + Agregar Zona
-        </button>
       </form>
 
-      <div className="zonas-list">
-        {zonas.length === 0 ? (
-          <p className="empty">No hay zonas. Crea una para comenzar.</p>
-        ) : (
-          zonas.map((zona) => (
-            <div key={zona.id} className="zona-card">
-              <div className="zona-info">
-                <h3>{zona.nombre}</h3>
-                {zona.descripcion && <p>{zona.descripcion}</p>}
-              </div>
-              <button
-                onClick={() => handleEliminar(zona.id)}
-                className="btn-small btn-danger"
-              >
-                Eliminar
-              </button>
-            </div>
-          ))
-        )}
+      <div style={{ display: 'grid', gap: '10px' }}>
+        {zonas.map(zona => (
+          <div key={zona.id} style={{
+            background: '#f9fafb',
+            padding: '15px',
+            borderRadius: '6px',
+            borderLeft: '4px solid #2563a8'
+          }}>
+            <h4 style={{ margin: '0 0 5px 0' }}>{zona.nombre}</h4>
+            <p style={{ margin: 0, color: '#999', fontSize: '14px' }}>{zona.descripcion}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
