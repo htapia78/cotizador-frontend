@@ -33,10 +33,13 @@ export default function Zonas({ proyectoId }) {
   };
 
   const handleEliminar = (id) => {
+  const zona = zonas.find(z => z.id === id);
+  if (window.confirm(`¿Eliminar la zona "${zona.nombre}"? Esta acción no se puede deshacer.`)) {
     const zonasActualizadas = zonas.filter(z => z.id !== id);
     setZonas(zonasActualizadas);
     localStorage.setItem(storageKey, JSON.stringify(zonasActualizadas));
-  };
+  }
+};
 
   return (
     <div style={{ background: 'white', padding: '24px', borderRadius: '8px' }}>
