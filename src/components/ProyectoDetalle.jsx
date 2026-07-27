@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import Zonas from './Zonas';
 
 export default function ProyectoDetalle() {
   const { id } = useParams();
@@ -84,12 +85,7 @@ export default function ProyectoDetalle() {
       </nav>
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '30px 20px' }}>
-        {tab === 'zonas' && (
-          <div style={{ background: 'white', padding: '24px', borderRadius: '8px' }}>
-            <h2>Zonas del Proyecto</h2>
-            <p style={{ color: '#999' }}>En desarrollo...</p>
-          </div>
-        )}
+        {tab === 'zonas' && <Zonas proyectoId={id} />}
         {tab === 'bocas' && (
           <div style={{ background: 'white', padding: '24px', borderRadius: '8px' }}>
             <h2>Conteo de Bocas</h2>
