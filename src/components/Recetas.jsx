@@ -1,329 +1,243 @@
-/**
- * Recetas - Definir qué materiales contiene cada tipo de boca
- */
-
-import React, { useEffect, useState } from 'react';
-import { tiposBocaAPI, materialesAPI, recetasAPI } from '../api';
-import './Recetas.css';
+import React, { useState, useEffect } from 'react';
 
 export default function Recetas({ proyectoId }) {
-  const [tiposBoca, setTiposBoca] = useState([]);
-  const [materiales, setMateriales] = useState([]);
-  const [recetasAgrupadas, setRecetasAgrupadas] = useState({});
+  const [tipos, setTipos] = useState([
+    { id: 1, nombre: 'Toma Monofásica' },
+    { id: 2, nombre: 'Aplique' },
+    { id: 3, nombre: 'Punto Luz' }
+  ]);
   const [tipoSeleccionado, setTipoSeleccionado] = useState(null);
-  const [materialSeleccionado, setMaterialSeleccionado] = useState(null);
-  const [cantidad, setCantidad] = useState('');
   const [nuevoTipo, setNuevoTipo] = useState('');
-  const [nuevoMaterial, setNuevoMaterial] = useState({
-    nombre: '',
-    unidad: '',
-    categoria: ''
-  });
-  const [loading, setLoading] = useState(true);
-  const [modo, setModo] = useState('ver'); // ver | crearTipo | crearMaterial
+  const [recetas, setRecetas] = useState({});
+  const [nuevoMaterial, setNuevoMaterial] = useState('');
+  const [nuevaCantidad, setNuevaCantidad] = useState('');
+  const storageKey = `recetas-${proyectoId}`;
+  const tiposStorageKey = `tipos-${proyectoId}`;
 
   useEffect(() => {
-    cargarDatos();
-  }, [proyectoId]);
-
-  const cargarDatos = async () => {
-    try {
-      const [tiposRes, materialesRes] = await Promise.all([
-        tiposBocaAPI.listar(proyectoId),
-        materialesAPI.listar(proyectoId)
-      ]);
-
-      setTiposBoca(tiposRes.data);
-      setMateriales(materialesRes.data);
-
-      // Cargar recetas para cada tipo
-      const recetasMap = {};
-      for (const tipo of tiposRes.data) {
-        try {
-          const recetasRes = await recetasAPI.listar(tipo.id);
-          recetasMap[tipo.id] = recetasRes.data;
-        } catch {
-          recetasMap[tipo.id] = [];
-        }
-      }
-      setRecetasAgrupadas(recetasMap);
-
-      if (tiposRes.data.length > 0) {
-        setTipoSeleccionado(tiposRes.data[0].id);
-      }
-    } catch (err) {
-      console.error('Error al cargar datos:', err);
-    } finally {
-      setLoading(false);
+    // Cargar tipos guardados
+    const tiposGuardados = localStorage.getItem(tiposStorageKey);
+    if (tiposGuardados) {
+      setTipos(JSON.parse(tiposGuardados));
+      setTipoSeleccionado(JSON.parse(tiposGuardados)[0].id);
+    } else {
+      setTipoSeleccionado(1);
     }
-  };
 
-  const handleCrearTipo = async (e) => {
+    // Cargar recetas
+    const recetasGuardadas = localStorage.getItem(storageKey);
+    if (recetasGuardadas) {
+      setRecetas(JSON.parse(recetasGuardadas));
+    }
+  }, [proyectoId, storageKey, tiposStorageKey]);
+
+  const handleAgregarTipo = (e) => {
     e.preventDefault();
-    try {
-      const res = await tiposBocaAPI.crear(proyectoId, nuevoTipo, '');
-      setTiposBoca([...tiposBoca, res.data]);
-      setRecetasAgrupadas({ ...recetasAgrupadas, [res.data.id]: [] });
-      setTipoSeleccionado(res.data.id);
+    if (nuevoTipo.trim()) {
+      const nuevoTypeObj = { id: Date.now(), nombre: nuevoTipo };
+      const tiposActualizados = [...tipos, nuevoTypeObj];
+      setTipos(tiposActualizados);
+      localStorage.setItem(tiposStorageKey, JSON.stringify(tiposActualizados));
+      setTipoSeleccionado(nuevoTypeObj.id);
       setNuevoTipo('');
-      setModo('ver');
-    } catch (err) {
-      console.error('Error al crear tipo:', err);
     }
   };
 
-  const handleCrearMaterial = async (e) => {
+  const handleAgregarMaterial = (e) => {
     e.preventDefault();
-    try {
-      const res = await materialesAPI.crear(
-        nuevoMaterial.nombre,
-        nuevoMaterial.unidad,
-        nuevoMaterial.categoria,
-        0,
-        null
-      );
-      setMateriales([...materiales, res.data]);
-      setNuevoMaterial({ nombre: '', unidad: '', categoria: '' });
-      setModo('ver');
-    } catch (err) {
-      console.error('Error al crear material:', err);
+    if (nuevoMaterial.trim() && nuevaCantidad) {
+      const tipoId = tipoSeleccionado;
+      const materialesDelTipo = recetas[tipoId] || [];
+      const nuevoMaterialObj = {
+        id: Date.now(),
+        nombre: nuevoMaterial,
+        cantidad: parseFloat(nuevaCantidad),
+        unidad: 'm'
+      };
+      const recetasActualizadas = {
+        ...recetas,
+        [tipoId]: [...materialesDelTipo, nuevoMaterialObj]
+      };
+      setRecetas(recetasActualizadas);
+      localStorage.setItem(storageKey, JSON.stringify(recetasActualizadas));
+      setNuevoMaterial('');
+      setNuevaCantidad('');
     }
   };
 
-  const handleAgregarMaterial = async (e) => {
-    e.preventDefault();
-    if (!tipoSeleccionado || !materialSeleccionado || !cantidad) return;
-
-    try {
-      const res = await recetasAPI.crear(
-        tipoSeleccionado,
-        materialSeleccionado,
-        parseFloat(cantidad)
-      );
-      setRecetasAgrupadas({
-        ...recetasAgrupadas,
-        [tipoSeleccionado]: [...(recetasAgrupadas[tipoSeleccionado] || []), res.data]
-      });
-      setCantidad('');
-      setMaterialSeleccionado(null);
-    } catch (err) {
-      console.error('Error al agregar material:', err);
-    }
+  const handleEliminarMaterial = (tipoId, materialId) => {
+    const materialesDelTipo = recetas[tipoId] || [];
+    const materialesActualizados = materialesDelTipo.filter(m => m.id !== materialId);
+    const recetasActualizadas = { ...recetas, [tipoId]: materialesActualizados };
+    setRecetas(recetasActualizadas);
+    localStorage.setItem(storageKey, JSON.stringify(recetasActualizadas));
   };
 
-  const handleEliminarReceta = async (recetaId) => {
-    try {
-      await recetasAPI.eliminar(recetaId);
-      setRecetasAgrupadas({
-        ...recetasAgrupadas,
-        [tipoSeleccionado]: recetasAgrupadas[tipoSeleccionado].filter(
-          r => r.id !== recetaId
-        )
-      });
-    } catch (err) {
-      console.error('Error al eliminar receta:', err);
-    }
-  };
-
-  if (loading) return <div className="loading">Cargando...</div>;
-
-  const recetasActuales = tipoSeleccionado ? (recetasAgrupadas[tipoSeleccionado] || []) : [];
-  const tipoActual = tiposBoca.find(t => t.id === tipoSeleccionado);
+  const materialesDelTipoSeleccionado = recetas[tipoSeleccionado] || [];
 
   return (
-    <div className="recetas-container">
-      <h2>Recetas de Materiales</h2>
+    <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+      <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>📋 Recetas de Materiales</h2>
+      <p style={{ color: '#666', marginBottom: '24px' }}>Define qué materiales lleva cada tipo de boca</p>
 
-      <div className="recetas-layout">
+      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '24px' }}>
         {/* PANEL IZQUIERDO: Tipos de Boca */}
-        <div className="recetas-panel tipos-panel">
-          <h3>Tipos de Boca</h3>
-          <div className="tipos-list">
-            {tiposBoca.map((tipo) => (
+        <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '10px', border: '1px solid #e5e7eb', height: 'fit-content' }}>
+          <h4 style={{ margin: '0 0 15px 0', color: '#1c2d4f' }}>Tipos de Boca</h4>
+          <div style={{ display: 'grid', gap: '8px', marginBottom: '15px' }}>
+            {tipos.map(tipo => (
               <button
                 key={tipo.id}
-                className={`tipo-item ${tipoSeleccionado === tipo.id ? 'active' : ''}`}
                 onClick={() => setTipoSeleccionado(tipo.id)}
+                style={{
+                  padding: '10px 12px',
+                  border: '1px solid #d1d5db',
+                  background: tipoSeleccionado === tipo.id ? '#2563a8' : 'white',
+                  color: tipoSeleccionado === tipo.id ? 'white' : '#1c2d4f',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: tipoSeleccionado === tipo.id ? '600' : '500',
+                  transition: 'all 0.2s',
+                  textAlign: 'left'
+                }}
               >
                 {tipo.nombre}
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setModo('crearTipo')}
-            className="btn-primary btn-block"
-          >
-            + Agregar Tipo
-          </button>
+
+          <form onSubmit={handleAgregarTipo} style={{ borderTop: '1px solid #d1d5db', paddingTop: '15px' }}>
+            <input
+              type="text"
+              value={nuevoTipo}
+              onChange={(e) => setNuevoTipo(e.target.value)}
+              placeholder="Nuevo tipo"
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '12px',
+                marginBottom: '8px',
+                boxSizing: 'border-box'
+              }}
+            />
+            <button
+              type="submit"
+              style={{
+                width: '100%',
+                padding: '8px',
+                background: '#2563a8',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '12px'
+              }}
+            >
+              + Tipo
+            </button>
+          </form>
         </div>
 
         {/* PANEL DERECHO: Receta del Tipo Seleccionado */}
-        <div className="recetas-panel receta-panel">
-          {modo === 'crearTipo' ? (
-            <form onSubmit={handleCrearTipo}>
-              <h3>Nuevo Tipo de Boca</h3>
-              <input
-                type="text"
-                value={nuevoTipo}
-                onChange={(e) => setNuevoTipo(e.target.value)}
-                placeholder="Nombre del tipo"
-                required
-              />
-              <button type="submit" className="btn-primary">
-                Crear
-              </button>
-              <button
-                type="button"
-                onClick={() => setModo('ver')}
-                className="btn-secondary"
-              >
-                Cancelar
-              </button>
-            </form>
-          ) : tipoActual ? (
+        <div>
+          {tipoSeleccionado && (
             <>
-              <h3>{tipoActual.nombre}</h3>
+              <h3 style={{ color: '#1c2d4f', marginTop: 0 }}>
+                {tipos.find(t => t.id === tipoSeleccionado)?.nombre}
+              </h3>
 
-              <div className="receta-form">
-                <h4>Agregar Material a esta Boca</h4>
+              <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '10px', marginBottom: '20px', border: '1px solid #e5e7eb' }}>
+                <h4 style={{ margin: '0 0 15px 0', color: '#1c2d4f' }}>Agregar Material</h4>
                 <form onSubmit={handleAgregarMaterial}>
-                  <div className="form-group">
-                    <label>Material:</label>
-                    <select
-                      value={materialSeleccionado || ''}
-                      onChange={(e) => setMaterialSeleccionado(parseInt(e.target.value))}
-                      required
-                    >
-                      <option value="">Seleccionar...</option>
-                      {materiales.map((mat) => (
-                        <option key={mat.id} value={mat.id}>
-                          {mat.nombre} ({mat.unidad})
-                        </option>
-                      ))}
-                    </select>
+                  <div style={{ marginBottom: '12px' }}>
+                    <input
+                      type="text"
+                      value={nuevoMaterial}
+                      onChange={(e) => setNuevoMaterial(e.target.value)}
+                      placeholder="Ej: Cable 2x1.5mm"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        boxSizing: 'border-box'
+                      }}
+                    />
                   </div>
-
-                  <div className="form-group">
-                    <label>Cantidad:</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: '8px' }}>
                     <input
                       type="number"
                       step="0.1"
-                      value={cantidad}
-                      onChange={(e) => setCantidad(e.target.value)}
-                      placeholder="Ej: 3"
-                      required
+                      value={nuevaCantidad}
+                      onChange={(e) => setNuevaCantidad(e.target.value)}
+                      placeholder="Cantidad"
+                      style={{
+                        padding: '10px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px'
+                      }}
                     />
+                    <button
+                      type="submit"
+                      style={{
+                        background: '#2563a8',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: '600'
+                      }}
+                    >
+                      + Agregar
+                    </button>
                   </div>
-
-                  <button type="submit" className="btn-primary">
-                    Agregar
-                  </button>
                 </form>
-
-                <button
-                  onClick={() => setModo('crearMaterial')}
-                  className="btn-secondary"
-                >
-                  + Material Nuevo
-                </button>
               </div>
 
-              <div className="receta-items">
-                <h4>Contenido</h4>
-                {recetasActuales.length === 0 ? (
-                  <p className="empty">No hay materiales en esta boca.</p>
-                ) : (
-                  recetasActuales.map((receta) => (
-                    <div key={receta.id} className="receta-item">
+              <h4 style={{ color: '#1c2d4f' }}>Materiales en esta boca</h4>
+              {materialesDelTipoSeleccionado.length === 0 ? (
+                <p style={{ color: '#999' }}>No hay materiales. Agrega uno.</p>
+              ) : (
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  {materialesDelTipoSeleccionado.map(material => (
+                    <div key={material.id} style={{
+                      background: '#f9fafb',
+                      padding: '12px',
+                      borderRadius: '6px',
+                      border: '1px solid #e5e7eb',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
                       <div>
-                        <strong>{receta.material_nombre}</strong>
-                        <span className="qty">
-                          {receta.cantidad} {receta.material_unidad}
-                        </span>
+                        <strong style={{ color: '#1c2d4f' }}>{material.nombre}</strong>
+                        <span style={{ color: '#999', marginLeft: '10px' }}>{material.cantidad} {material.unidad}</span>
                       </div>
                       <button
-                        onClick={() => handleEliminarReceta(receta.id)}
-                        className="btn-small btn-danger"
+                        onClick={() => handleEliminarMaterial(tipoSeleccionado, material.id)}
+                        style={{
+                          background: '#fee2e2',
+                          color: '#991b1b',
+                          padding: '5px 10px',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '12px'
+                        }}
                       >
                         ✕
                       </button>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </>
-          ) : (
-            <p className="empty">Selecciona un tipo de boca o crea uno nuevo.</p>
           )}
         </div>
       </div>
-
-      {/* MODAL CREAR MATERIAL */}
-      {modo === 'crearMaterial' && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h3>Nuevo Material</h3>
-            <form onSubmit={handleCrearMaterial}>
-              <div className="form-group">
-                <label>Nombre:</label>
-                <input
-                  type="text"
-                  value={nuevoMaterial.nombre}
-                  onChange={(e) =>
-                    setNuevoMaterial({ ...nuevoMaterial, nombre: e.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Unidad:</label>
-                <input
-                  type="text"
-                  value={nuevoMaterial.unidad}
-                  onChange={(e) =>
-                    setNuevoMaterial({ ...nuevoMaterial, unidad: e.target.value })
-                  }
-                  placeholder="mts, un, cajas"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Categoría:</label>
-                <select
-                  value={nuevoMaterial.categoria}
-                  onChange={(e) =>
-                    setNuevoMaterial({ ...nuevoMaterial, categoria: e.target.value })
-                  }
-                  required
-                >
-                  <option value="">Seleccionar</option>
-                  <option value="Canalización">Canalización</option>
-                  <option value="Cables">Cables</option>
-                  <option value="Ilum.+Tomas">Ilum.+Tomas</option>
-                  <option value="Tableros">Tableros</option>
-                  <option value="PAT">PAT</option>
-                  <option value="Otros">Otros</option>
-                </select>
-              </div>
-
-              <div className="modal-actions">
-                <button type="submit" className="btn-primary">
-                  Crear
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModo('ver')}
-                  className="btn-secondary"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
