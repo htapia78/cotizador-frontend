@@ -172,19 +172,28 @@ export default function Dashboard() {
             <p style={{ color: '#999' }}>No hay proyectos. Crea uno para comenzar.</p>
           ) : (
             proyectos.map((proyecto) => (
-              <div key={proyecto.id} style={{
-                background: 'white',
-                padding: '20px',
-                borderRadius: '8px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                border: 'left: 4px solid #2563a8'
-              }}>
+              <div
+                key={proyecto.id}
+                onClick={() => navigate(`/proyecto/${proyecto.id}`)}
+                style={{
+                  background: 'white',
+                  padding: '20px',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                  borderLeft: '4px solid #2563a8',
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'}
+              >
                 <h3 style={{ margin: '0 0 10px 0', color: '#1c2d4f' }}>{proyecto.nombre}</h3>
                 <p style={{ margin: '5px 0', color: '#666' }}><strong>Cliente:</strong> {proyecto.cliente}</p>
                 <p style={{ margin: '5px 0', color: '#999', fontSize: '12px' }}>
                   Creado: {new Date(proyecto.fecha_creacion).toLocaleDateString()}
                 </p>
               </div>
+            ))
             ))
           )}
         </div>
