@@ -51,7 +51,6 @@ export default function ProyectoDetalle() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)' }}>
-      {/* HEADER */}
       <header style={{
         background: 'linear-gradient(135deg, #1c2d4f 0%, #2563a8 100%)',
         color: 'white',
@@ -73,14 +72,6 @@ export default function ProyectoDetalle() {
               transition: 'all 0.2s',
               fontSize: '14px'
             }}
-            onMouseEnter={(e) => {
-              e.target.style.background = 'rgba(255,255,255,0.25)';
-              e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = 'rgba(255,255,255,0.15)';
-              e.target.style.boxShadow = 'none';
-            }}
           >
             ← Volver
           </button>
@@ -91,7 +82,6 @@ export default function ProyectoDetalle() {
         </div>
       </header>
 
-      {/* TABS NAVIGATION */}
       <nav style={{
         background: 'white',
         borderBottom: '2px solid #e5e7eb',
@@ -116,39 +106,17 @@ export default function ProyectoDetalle() {
               fontSize: '14px',
               whiteSpace: 'nowrap'
             }}
-            onMouseEnter={(e) => {
-              if (tab !== t.id) e.target.style.color = '#1c2d4f';
-            }}
-            onMouseLeave={(e) => {
-              if (tab !== t.id) e.target.style.color = '#6b7280';
-            }}
           >
             {t.icon} {t.label}
           </button>
         ))}
       </nav>
 
-      {/* CONTENT */}
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
         {tab === 'zonas' && <Zonas proyectoId={id} />}
         {tab === 'bocas' && <Bocas proyectoId={id} />}
-          <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-            <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>🔌 Conteo de Bocas</h2>
-            <p style={{ color: '#999' }}>En desarrollo...</p>
-          </div>
-        )}
         {tab === 'recetas' && <Recetas proyectoId={id} />}
-          <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-            <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>📋 Recetas</h2>
-            <p style={{ color: '#999' }}>En desarrollo...</p>
-          </div>
-        )}
         {tab === 'computo' && <Computo proyectoId={id} />}
-          <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-            <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>🧮 Cómputo de Materiales</h2>
-            <p style={{ color: '#999' }}>En desarrollo...</p>
-          </div>
-        )}
       </div>
     </div>
   );
