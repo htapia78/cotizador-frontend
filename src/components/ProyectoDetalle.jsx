@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Zonas from './Zonas';
+import Bocas from './Bocas';
 
 export default function ProyectoDetalle() {
   const { id } = useParams();
@@ -128,7 +129,7 @@ export default function ProyectoDetalle() {
       {/* CONTENT */}
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
         {tab === 'zonas' && <Zonas proyectoId={id} />}
-        {tab === 'bocas' && (
+        {tab === 'bocas' && <Bocas proyectoId={id} />}
           <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
             <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>🔌 Conteo de Bocas</h2>
             <p style={{ color: '#999' }}>En desarrollo...</p>
