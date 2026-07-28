@@ -15,7 +15,8 @@
     "xlsx": "^0.18.5",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.5.31",
-    "html2canvas": "^1.4.1"
+    "html2canvas": "^1.4.1",
+    "pdfjs-dist": "^3.11.174"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",
