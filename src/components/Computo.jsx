@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function Computo({ proyectoId }) {
   const [materiales, setMateriales] = useState([]);
@@ -104,52 +105,67 @@ export default function Computo({ proyectoId }) {
   const descargarPdf = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    let yPos = 10;
+    let yPos = 15;
 
     // Header
     doc.setFontSize(16);
+    doc.setTextColor(28, 45, 79); // Color #1c2d4f
     doc.text('APEXCORE S.A.S.', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 8;
+    yPos += 10;
 
     doc.setFontSize(12);
     doc.text('SOLICITUD DE COTIZACIÓN DE MATERIALES', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 12;
+    yPos += 15;
 
     // Datos empresa
-    doc.setFontSize(10);
-    doc.text('Datos de la Empresa:', 12, yPos);
-    yPos += 6;
     doc.setFontSize(9);
-    doc.text('Dirección: JOAQUIN V. GONZALEZ 855', 12, yPos);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Datos de la Empresa:', 15, yPos);
     yPos += 5;
-    doc.text('Ciudad: GODOY CRUZ | Provincia: MENDOZA', 12, yPos);
-    yPos += 5;
-    doc.text('C.U.I.T.: 30-71899092-7', 12, yPos);
+    doc.setFontSize(8);
+    doc.text('Dirección: JOAQUIN V. GONZALEZ 855', 15, yPos);
+    yPos += 4;
+    doc.text('Ciudad: GODOY CRUZ | Provincia: MENDOZA', 15, yPos);
+    yPos += 4;
+    doc.text('C.U.I.T.: 30-71899092-7', 15, yPos);
     yPos += 10;
 
     // Tabla
-    doc.setFontSize(9);
-    const tableData = [
-      ['Material', 'Cantidad', 'Unidad'],
-      ...materiales.map(m => [m.nombre, m.cantidad.toFixed(2), m.unidad])
-    ];
+    const tableData = materiales.map(m => [
+      m.nombre,
+      m.cantidad.toFixed(2),
+      m.unidad
+    ]);
 
-    doc.autoTable({
+    autoTable(doc, {
+      head: [['Material', 'Cantidad', 'Unidad']],
+      body: tableData,
       startY: yPos,
-      head: [tableData[0]],
-      body: tableData.slice(1),
+      margin: { left: 15, right: 15 },
       columnStyles: {
         0: { cellWidth: 120 },
         1: { cellWidth: 30, halign: 'center' },
         2: { cellWidth: 20, halign: 'center' }
       },
-      margin: { left: 12, right: 12 }
+      headStyles: {
+        fillColor: [28, 45, 79],
+        textColor: [255, 255, 255],
+        fontSize: 9,
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        textColor: [0, 0, 0],
+        fontSize: 8
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251]
+      }
     });
 
-    // Total
-    yPos = doc.lastAutoTable.finalY + 10;
-    doc.text(`Total de items: ${materiales.length}`, 12, yPos);
+    // Total al final
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(9);
+    doc.text(`Total de items: ${materiales.length}`, 15, finalY);
 
     doc.save(`Pedido_Precios_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
