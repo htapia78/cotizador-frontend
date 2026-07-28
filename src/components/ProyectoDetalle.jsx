@@ -4,6 +4,7 @@ import Zonas from './Zonas';
 import Bocas from './Bocas';
 import Recetas from './Recetas';
 import Computo from './Computo';
+import MaterialesSinReceta from './MaterialesSinReceta';
 
 export default function ProyectoDetalle() {
   const { id } = useParams();
@@ -46,6 +47,7 @@ export default function ProyectoDetalle() {
     { id: 'zonas', label: 'Zonas', icon: '📍' },
     { id: 'bocas', label: 'Conteo de Bocas', icon: '🔌' },
     { id: 'recetas', label: 'Recetas', icon: '📋' },
+    { id: 'materiales', label: 'Materiales sin Receta', icon: '📦' },
     { id: 'computo', label: 'Cómputo', icon: '🧮' }
   ];
 
@@ -116,6 +118,7 @@ export default function ProyectoDetalle() {
         {tab === 'zonas' && <Zonas proyectoId={id} />}
         {tab === 'bocas' && <Bocas proyectoId={id} />}
         {tab === 'recetas' && <Recetas proyectoId={id} />}
+        {tab === 'materiales' && <MaterialesSinReceta proyectoId={id} />}
         {tab === 'computo' && <Computo proyectoId={id} />}
       </div>
     </div>
