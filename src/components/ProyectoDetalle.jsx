@@ -5,6 +5,7 @@ import Bocas from './Bocas';
 import Recetas from './Recetas';
 import Computo from './Computo';
 import MaterialesSinReceta from './MaterialesSinReceta';
+import Precios from './Precios';
 
 export default function ProyectoDetalle() {
   const { id } = useParams();
@@ -48,7 +49,8 @@ export default function ProyectoDetalle() {
     { id: 'bocas', label: 'Conteo de Bocas', icon: '🔌' },
     { id: 'recetas', label: 'Recetas', icon: '📋' },
     { id: 'materiales', label: 'Materiales sin Receta', icon: '📦' },
-    { id: 'computo', label: 'Cómputo', icon: '🧮' }
+    { id: 'computo', label: 'Cómputo', icon: '🧮' },
+    { id: 'precios', label: 'Precios', icon: '💲' }
   ];
 
   return (
@@ -120,6 +122,7 @@ export default function ProyectoDetalle() {
         {tab === 'recetas' && <Recetas proyectoId={id} />}
         {tab === 'materiales' && <MaterialesSinReceta proyectoId={id} />}
         {tab === 'computo' && <Computo proyectoId={id} />}
+        {tab === 'precios' && <Precios proyectoId={id} />}
       </div>
     </div>
   );
