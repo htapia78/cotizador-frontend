@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable';
 
 export default function Computo({ proyectoId }) {
   const [materiales, setMateriales] = useState([]);
@@ -64,7 +64,6 @@ export default function Computo({ proyectoId }) {
   };
 
   const descargarExcel = () => {
-    // Crear workbook
     const ws = XLSX.utils.aoa_to_sheet([
       ['APEXCORE S.A.S.', '', '', ''],
       ['Solicitud de Cotización de Materiales', '', '', ''],
@@ -81,7 +80,6 @@ export default function Computo({ proyectoId }) {
       ['TOTAL ITEMS', materiales.length, '', ''],
     ]);
 
-    // Ajustar ancho de columnas
     ws['!cols'] = [
       { wch: 40 },
       { wch: 15 },
@@ -89,85 +87,82 @@ export default function Computo({ proyectoId }) {
       { wch: 18 }
     ];
 
-    // Estilos básicos
-    for (let i = 0; i < materiales.length + 10; i++) {
-      const cellA = ws[`A${i + 1}`];
-      if (cellA) {
-        cellA.alignment = { horizontal: 'left', vertical: 'center', wrapText: true };
-      }
-    }
-
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Solicitud');
     XLSX.writeFile(wb, `Pedido_Precios_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const descargarPdf = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let yPos = 15;
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPos = 15;
 
-    // Header
-    doc.setFontSize(16);
-    doc.setTextColor(28, 45, 79); // Color #1c2d4f
-    doc.text('APEXCORE S.A.S.', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 10;
+      // Header
+      doc.setFontSize(16);
+      doc.setTextColor(28, 45, 79);
+      doc.text('APEXCORE S.A.S.', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
 
-    doc.setFontSize(12);
-    doc.text('SOLICITUD DE COTIZACIÓN DE MATERIALES', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 15;
+      doc.setFontSize(12);
+      doc.text('SOLICITUD DE COTIZACIÓN DE MATERIALES', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 15;
 
-    // Datos empresa
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Datos de la Empresa:', 15, yPos);
-    yPos += 5;
-    doc.setFontSize(8);
-    doc.text('Dirección: JOAQUIN V. GONZALEZ 855', 15, yPos);
-    yPos += 4;
-    doc.text('Ciudad: GODOY CRUZ | Provincia: MENDOZA', 15, yPos);
-    yPos += 4;
-    doc.text('C.U.I.T.: 30-71899092-7', 15, yPos);
-    yPos += 10;
+      // Datos empresa
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Datos de la Empresa:', 15, yPos);
+      yPos += 5;
+      doc.setFontSize(8);
+      doc.text('Dirección: JOAQUIN V. GONZALEZ 855', 15, yPos);
+      yPos += 4;
+      doc.text('Ciudad: GODOY CRUZ | Provincia: MENDOZA', 15, yPos);
+      yPos += 4;
+      doc.text('C.U.I.T.: 30-71899092-7', 15, yPos);
+      yPos += 10;
 
-    // Tabla
-    const tableData = materiales.map(m => [
-      m.nombre,
-      m.cantidad.toFixed(2),
-      m.unidad
-    ]);
+      // Tabla
+      const tableData = materiales.map(m => [
+        m.nombre,
+        m.cantidad.toFixed(2),
+        m.unidad
+      ]);
 
-    autoTable(doc, {
-      head: [['Material', 'Cantidad', 'Unidad']],
-      body: tableData,
-      startY: yPos,
-      margin: { left: 15, right: 15 },
-      columnStyles: {
-        0: { cellWidth: 120 },
-        1: { cellWidth: 30, halign: 'center' },
-        2: { cellWidth: 20, halign: 'center' }
-      },
-      headStyles: {
-        fillColor: [28, 45, 79],
-        textColor: [255, 255, 255],
-        fontSize: 9,
-        fontStyle: 'bold'
-      },
-      bodyStyles: {
-        textColor: [0, 0, 0],
-        fontSize: 8
-      },
-      alternateRowStyles: {
-        fillColor: [249, 250, 251]
-      }
-    });
+      doc.autoTable({
+        head: [['Material', 'Cantidad', 'Unidad']],
+        body: tableData,
+        startY: yPos,
+        margin: { left: 15, right: 15 },
+        columnStyles: {
+          0: { cellWidth: 120 },
+          1: { cellWidth: 30, halign: 'center' },
+          2: { cellWidth: 20, halign: 'center' }
+        },
+        headStyles: {
+          fillColor: [28, 45, 79],
+          textColor: [255, 255, 255],
+          fontSize: 9,
+          fontStyle: 'bold'
+        },
+        bodyStyles: {
+          textColor: [0, 0, 0],
+          fontSize: 8
+        },
+        alternateRowStyles: {
+          fillColor: [249, 250, 251]
+        }
+      });
 
-    // Total al final
-    const finalY = doc.lastAutoTable.finalY + 10;
-    doc.setFontSize(9);
-    doc.text(`Total de items: ${materiales.length}`, 15, finalY);
+      // Total
+      const finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(9);
+      doc.text(`Total de items: ${materiales.length}`, 15, finalY);
 
-    doc.save(`Pedido_Precios_${new Date().toISOString().slice(0, 10)}.pdf`);
+      doc.save(`Pedido_Precios_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      alert('Error al generar PDF. Intenta descargar Excel en su lugar.');
+    }
   };
 
   return (
