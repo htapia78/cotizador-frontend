@@ -12,21 +12,21 @@ export default function Computo({ proyectoId }) {
     // Cargar datos de localStorage
     const bocasStorageKey = `bocas-${proyectoId}`;
     const recetasStorageKey = `recetas-${proyectoId}`;
-    const tiposStorageKey = `tipos-${proyectoId}`;
+    const materilesSinRecetaKey = `materiales-sin-receta-${proyectoId}`;
 
     const conteos = JSON.parse(localStorage.getItem(bocasStorageKey) || '{}');
     const recetas = JSON.parse(localStorage.getItem(recetasStorageKey) || '{}');
-    const tipos = JSON.parse(localStorage.getItem(tiposStorageKey) || '[]');
+    const materialesSinReceta = JSON.parse(localStorage.getItem(materilesSinRecetaKey) || '[]');
 
     // Calcular totales por material
     const materiales_calculados = {};
 
-    // Iterar sobre conteos (zona-tipo -> cantidad)
+    // 1. MATERIALES CON RECETA (bocas)
     Object.entries(conteos).forEach(([key, cantidad]) => {
       const [zonaId, tipoId] = key.split('-').map(Number);
       
       // Buscar recetas para este tipo
-      const recetasDeTipo = recetas[tipoId] || [];
+      const recetasDeTipo = recetas[tipoId] || recetas[`${tipoId}`] || [];
       
       recetasDeTipo.forEach(material => {
         const materialKey = material.nombre;
@@ -41,6 +41,20 @@ export default function Computo({ proyectoId }) {
         }
         materiales_calculados[materialKey].cantidad += cantidadTotal;
       });
+    });
+
+    // 2. MATERIALES SIN RECETA (agregados manualmente)
+    materialesSinReceta.forEach(material => {
+      const materialKey = material.nombre;
+      
+      if (!materiales_calculados[materialKey]) {
+        materiales_calculados[materialKey] = {
+          nombre: material.nombre,
+          cantidad: 0,
+          unidad: material.unidad || 'un'
+        };
+      }
+      materiales_calculados[materialKey].cantidad += material.cantidad;
     });
 
     // Convertir a array y filtrar zeros
