@@ -66,7 +66,36 @@ export default function Computo({ proyectoId }) {
     const totalCalc = materialesArray.reduce((sum, m) => sum + (m.cantidad || 0), 0);
     setTotal(totalCalc);
   };
+  
+const descargarExcel = (mats) => {
+    // Crear CSV (Excel lo puede abrir)
+    let csv = 'MATERIAL,CANTIDAD,UNIDAD\n';
+    mats.forEach(mat => {
+      csv += `"${mat.nombre}",${mat.cantidad.toFixed(2)},${mat.unidad}\n`;
+    });
+    
+    // Descargar
+    const link = document.createElement('a');
+    link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    link.download = `Pedido_Materiales_${proyectoId}.csv`;
+    link.click();
+  };
 
+  const descargarPdf = (mats) => {
+    // Por ahora, usando librería simple
+    let contenido = 'PEDIDO DE MATERIALES\n\n';
+    contenido += 'MATERIAL | CANTIDAD | UNIDAD\n';
+    contenido += '================================\n';
+    mats.forEach(mat => {
+      contenido += `${mat.nombre} | ${mat.cantidad.toFixed(2)} | ${mat.unidad}\n`;
+    });
+    
+    const link = document.createElement('a');
+    link.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(contenido);
+    link.download = `Pedido_Materiales_${proyectoId}.txt`;
+    link.click();
+  };
+  
   return (
     <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -74,20 +103,53 @@ export default function Computo({ proyectoId }) {
           <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>🧮 Cómputo de Materiales</h2>
           <p style={{ color: '#666' }}>Total de materiales necesarios para el proyecto</p>
         </div>
-        <button
-          onClick={calcularComputo}
-          style={{
-            background: '#2563a8',
-            color: 'white',
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600'
-          }}
-        >
-          🔄 Recalcular
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            onClick={calcularComputo}
+            style={{
+              background: '#6366f1',
+              color: 'white',
+              padding: '10px 20px',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '14px'
+            }}
+          >
+            🔄 Recalcular
+          </button>
+          <button
+            onClick={() => descargarExcel(materiales)}
+            style={{
+              background: '#10b981',
+              color: 'white',
+              padding: '10px 20px',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '14px'
+            }}
+          >
+            📥 Excel
+          </button>
+          <button
+            onClick={() => descargarPdf(materiales)}
+            style={{
+              background: '#f59e0b',
+              color: 'white',
+              padding: '10px 20px',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '14px'
+            }}
+          >
+            📄 PDF
+          </button>
+        </div>
       </div>
 
       {materiales.length === 0 ? (
