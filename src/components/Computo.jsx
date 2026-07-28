@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
 
 export default function Computo({ proyectoId }) {
   const [materiales, setMateriales] = useState([]);
@@ -9,7 +11,6 @@ export default function Computo({ proyectoId }) {
   }, [proyectoId]);
 
   const calcularComputo = () => {
-    // Cargar datos de localStorage
     const bocasStorageKey = `bocas-${proyectoId}`;
     const recetasStorageKey = `recetas-${proyectoId}`;
     const materilesSinRecetaKey = `materiales-sin-receta-${proyectoId}`;
@@ -18,14 +19,10 @@ export default function Computo({ proyectoId }) {
     const recetas = JSON.parse(localStorage.getItem(recetasStorageKey) || '{}');
     const materialesSinReceta = JSON.parse(localStorage.getItem(materilesSinRecetaKey) || '[]');
 
-    // Calcular totales por material
     const materiales_calculados = {};
 
-    // 1. MATERIALES CON RECETA (bocas)
     Object.entries(conteos).forEach(([key, cantidad]) => {
       const [zonaId, tipoId] = key.split('-').map(Number);
-      
-      // Buscar recetas para este tipo
       const recetasDeTipo = recetas[tipoId] || recetas[`${tipoId}`] || [];
       
       recetasDeTipo.forEach(material => {
@@ -43,7 +40,6 @@ export default function Computo({ proyectoId }) {
       });
     });
 
-    // 2. MATERIALES SIN RECETA (agregados manualmente)
     materialesSinReceta.forEach(material => {
       const materialKey = material.nombre;
       
@@ -57,7 +53,6 @@ export default function Computo({ proyectoId }) {
       materiales_calculados[materialKey].cantidad += material.cantidad;
     });
 
-    // Convertir a array y filtrar zeros
     const materialesArray = Object.values(materiales_calculados)
       .filter(m => m.cantidad > 0)
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -66,36 +61,99 @@ export default function Computo({ proyectoId }) {
     const totalCalc = materialesArray.reduce((sum, m) => sum + (m.cantidad || 0), 0);
     setTotal(totalCalc);
   };
-  
-const descargarExcel = (mats) => {
-    // Crear CSV (Excel lo puede abrir)
-    let csv = 'MATERIAL,CANTIDAD,UNIDAD\n';
-    mats.forEach(mat => {
-      csv += `"${mat.nombre}",${mat.cantidad.toFixed(2)},${mat.unidad}\n`;
-    });
-    
-    // Descargar
-    const link = document.createElement('a');
-    link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    link.download = `Pedido_Materiales_${proyectoId}.csv`;
-    link.click();
+
+  const descargarExcel = () => {
+    // Crear workbook
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['APEXCORE S.A.S.', '', '', ''],
+      ['Solicitud de Cotización de Materiales', '', '', ''],
+      ['', '', '', ''],
+      ['Datos de la Empresa:', '', 'Datos del Proveedor:', ''],
+      ['Dirección: JOAQUIN V. GONZALEZ 855', '', 'Proveedor:', ''],
+      ['Ciudad: GODOY CRUZ', '', 'Contacto:', ''],
+      ['Provincia: MENDOZA', '', 'Teléfono:', ''],
+      ['C.U.I.T.: 30-71899092-7', '', 'E-mail:', ''],
+      ['', '', '', ''],
+      ['MATERIAL', 'CANTIDAD', 'UNIDAD', 'PRECIO UNITARIO'],
+      ...materiales.map(m => [m.nombre, m.cantidad.toFixed(2), m.unidad, '']),
+      ['', '', '', ''],
+      ['TOTAL ITEMS', materiales.length, '', ''],
+    ]);
+
+    // Ajustar ancho de columnas
+    ws['!cols'] = [
+      { wch: 40 },
+      { wch: 15 },
+      { wch: 12 },
+      { wch: 18 }
+    ];
+
+    // Estilos básicos
+    for (let i = 0; i < materiales.length + 10; i++) {
+      const cellA = ws[`A${i + 1}`];
+      if (cellA) {
+        cellA.alignment = { horizontal: 'left', vertical: 'center', wrapText: true };
+      }
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Solicitud');
+    XLSX.writeFile(wb, `Pedido_Precios_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  const descargarPdf = (mats) => {
-    // Por ahora, usando librería simple
-    let contenido = 'PEDIDO DE MATERIALES\n\n';
-    contenido += 'MATERIAL | CANTIDAD | UNIDAD\n';
-    contenido += '================================\n';
-    mats.forEach(mat => {
-      contenido += `${mat.nombre} | ${mat.cantidad.toFixed(2)} | ${mat.unidad}\n`;
+  const descargarPdf = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPos = 10;
+
+    // Header
+    doc.setFontSize(16);
+    doc.text('APEXCORE S.A.S.', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 8;
+
+    doc.setFontSize(12);
+    doc.text('SOLICITUD DE COTIZACIÓN DE MATERIALES', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 12;
+
+    // Datos empresa
+    doc.setFontSize(10);
+    doc.text('Datos de la Empresa:', 12, yPos);
+    yPos += 6;
+    doc.setFontSize(9);
+    doc.text('Dirección: JOAQUIN V. GONZALEZ 855', 12, yPos);
+    yPos += 5;
+    doc.text('Ciudad: GODOY CRUZ | Provincia: MENDOZA', 12, yPos);
+    yPos += 5;
+    doc.text('C.U.I.T.: 30-71899092-7', 12, yPos);
+    yPos += 10;
+
+    // Tabla
+    doc.setFontSize(9);
+    const tableData = [
+      ['Material', 'Cantidad', 'Unidad'],
+      ...materiales.map(m => [m.nombre, m.cantidad.toFixed(2), m.unidad])
+    ];
+
+    doc.autoTable({
+      startY: yPos,
+      head: [tableData[0]],
+      body: tableData.slice(1),
+      columnStyles: {
+        0: { cellWidth: 120 },
+        1: { cellWidth: 30, halign: 'center' },
+        2: { cellWidth: 20, halign: 'center' }
+      },
+      margin: { left: 12, right: 12 }
     });
-    
-    const link = document.createElement('a');
-    link.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(contenido);
-    link.download = `Pedido_Materiales_${proyectoId}.txt`;
-    link.click();
+
+    // Total
+    yPos = doc.lastAutoTable.finalY + 10;
+    doc.text(`Total de items: ${materiales.length}`, 12, yPos);
+
+    doc.save(`Pedido_Precios_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
-  
+
   return (
     <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -120,7 +178,7 @@ const descargarExcel = (mats) => {
             🔄 Recalcular
           </button>
           <button
-            onClick={() => descargarExcel(materiales)}
+            onClick={descargarExcel}
             style={{
               background: '#10b981',
               color: 'white',
@@ -132,10 +190,10 @@ const descargarExcel = (mats) => {
               fontSize: '14px'
             }}
           >
-            📥 Excel
+            📥 Descargar Excel
           </button>
           <button
-            onClick={() => descargarPdf(materiales)}
+            onClick={descargarPdf}
             style={{
               background: '#f59e0b',
               color: 'white',
@@ -147,7 +205,7 @@ const descargarExcel = (mats) => {
               fontSize: '14px'
             }}
           >
-            📄 PDF
+            📄 Descargar PDF
           </button>
         </div>
       </div>
