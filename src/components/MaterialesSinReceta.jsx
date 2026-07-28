@@ -33,6 +33,16 @@ const CATALOGO = [
   { categoria: 'Cables', material: 'Cable Unipolar 2.5mm Negro', unidad: 'mts' },
   { categoria: 'Cables', material: 'Cable Unipolar 2.5mm Celeste', unidad: 'mts' },
   { categoria: 'Cables', material: 'Cable Unipolar 2.5mm V/A', unidad: 'mts' },
+  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 2x2.5+T 2.5mm', unidad: 'mts' },
+  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 2x6mm', unidad: 'mts' },
+  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 4x6mm', unidad: 'mts' },
+  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 4x10mm', unidad: 'mts' },
+  { categoria: 'Cables Esp.', material: 'Cable Unipolar V/A 6mm', unidad: 'mts' },
+  { categoria: 'Cables Esp.', material: 'Cable Unipolar V/A 10mm', unidad: 'mts' },
+  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 4x25mm', unidad: 'mts' },
+  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 4x16mm', unidad: 'mts' },
+  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 2x4mm', unidad: 'mts' },
+  { categoria: 'Cables Esp.', material: 'Cable Unipolar V/A 2.5mm', unidad: 'mts' },
   { categoria: 'Ilum. + Tomas', material: 'Bastidor', unidad: 'un' },
   { categoria: 'Ilum. + Tomas', material: 'Marco', unidad: 'un' },
   { categoria: 'Ilum. + Tomas', material: 'Módulo Tapa Ciega', unidad: 'un' },
@@ -47,7 +57,7 @@ const CATALOGO = [
   { categoria: 'Tableros', material: 'Tablero 36 Polos', unidad: 'un' },
   { categoria: 'Tableros', material: 'Tablero 60 Polos', unidad: 'un' },
   { categoria: 'Tableros', material: 'Tablero 80 Polos', unidad: 'un' },
-  { categoria: 'Tableros', material: 'GABINETE METALICO CON DUCTO IP65 P/ 160 BOCAS 750X900X210', unidad: 'un' },
+  { categoria: 'Tableros', material: 'GABINETE METALICO IP65 750X900X210', unidad: 'un' },
   { categoria: 'Tableros', material: 'INTERRUPTOR TERMOMAGNETICO 2X10A', unidad: 'un' },
   { categoria: 'Tableros', material: 'INTERRUPTOR TERMOMAGNETICO 2X16A', unidad: 'un' },
   { categoria: 'Tableros', material: 'INTERRUPTOR TERMOMAGNETICO 4X40A', unidad: 'un' },
@@ -68,16 +78,6 @@ const CATALOGO = [
   { categoria: 'PAT', material: 'Bloquete PAT 3/4" T1', unidad: 'un' },
   { categoria: 'PAT', material: 'Cámara de PAT', unidad: 'un' },
   { categoria: 'PAT', material: 'Carbonilla', unidad: 'un' },
-  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 2x2.5+T 2.5mm', unidad: 'mts' },
-  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 2x6mm', unidad: 'mts' },
-  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 4x6mm', unidad: 'mts' },
-  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 4x10mm', unidad: 'mts' },
-  { categoria: 'Cables Esp.', material: 'Cable Unipolar V/A 6mm', unidad: 'mts' },
-  { categoria: 'Cables Esp.', material: 'Cable Unipolar V/A 10mm', unidad: 'mts' },
-  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 4x25mm', unidad: 'mts' },
-  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 4x16mm', unidad: 'mts' },
-  { categoria: 'Cables Esp.', material: 'Cable Subterráneo 2x4mm', unidad: 'mts' },
-  { categoria: 'Cables Esp.', material: 'Cable Unipolar V/A 2.5mm', unidad: 'mts' },
   { categoria: 'Canaliz. Esp.', material: 'Pegamento chico', unidad: 'un' },
   { categoria: 'Canaliz. Esp.', material: 'Distribuidor Elent 4 7 125AP', unidad: 'un' },
   { categoria: 'Canaliz. Esp.', material: 'Distribuidor Elent 4 12 125AP', unidad: 'un' },
@@ -116,20 +116,7 @@ export default function MaterialesSinReceta({ proyectoId }) {
     : [];
 
   const handleSeleccionar = (materialObj) => {
-    if (!nuevaCantidad) return;
-    
-    const nuevoMatObj = {
-      id: Date.now(),
-      nombre: materialObj.material,
-      cantidad: parseFloat(nuevaCantidad),
-      unidad: materialObj.unidad
-    };
-
-    const materialesActualizados = [...materiales, nuevoMatObj];
-    setMateriales(materialesActualizados);
-    localStorage.setItem(storageKey, JSON.stringify(materialesActualizados));
-    setBusqueda('');
-    setNuevaCantidad('');
+    setBusqueda(materialObj.material);
     setMostrarSugerencias(false);
   };
 
@@ -179,7 +166,7 @@ export default function MaterialesSinReceta({ proyectoId }) {
                 setMostrarSugerencias(true);
               }}
               onFocus={() => setMostrarSugerencias(true)}
-              placeholder="Busca material (ej: Cable Subterráneo)"
+              placeholder="Busca material (ej: Cable Subterráneo, PVC)"
               style={{
                 width: '100%',
                 padding: '10px',
@@ -201,7 +188,7 @@ export default function MaterialesSinReceta({ proyectoId }) {
                 border: '1px solid #d1d5db',
                 borderRadius: '6px',
                 marginTop: '4px',
-                maxHeight: '200px',
+                maxHeight: '250px',
                 overflowY: 'auto',
                 zIndex: 10,
                 boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
