@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import * as pdfjsLib from 'pdfjs-dist';
+import Tesseract from 'tesseract.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
@@ -213,8 +214,7 @@ export default function Precios({ proyectoId }) {
           console.log('Iniciando OCR...');
           
           // Importar Tesseract dinámicamente
-          const Tesseract = (await import('tesseract.js')).default;
-
+          
           for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
             const page = await pdf.getPage(pageNum);
             const viewport = page.getViewport({ scale: 2 });
