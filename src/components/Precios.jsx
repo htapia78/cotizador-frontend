@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configurar worker de PDF.js
@@ -107,48 +108,44 @@ export default function Precios({ proyectoId }) {
 
     setCargando(true);
     try {
-      const fileReader = new FileReader();
-      fileReader.onload = (e) => {
-        const data = e.target.result;
-        const workbook = window.XLSX.read(data, { type: 'array' });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = window.XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-        const preciosActualizados = { ...precios };
-        const materialesActualizados = materiales.map(m => ({ ...m }));
-        let actualizados = 0;
+      const preciosActualizados = { ...precios };
+      const materialesActualizados = materiales.map(m => ({ ...m }));
+      let actualizados = 0;
 
-        // Saltar header (fila 0)
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row || row.length < 3) continue;
+      // Saltar header (fila 0)
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length < 3) continue;
 
-          const materialNombre = (row[0] || '').toString().trim().toUpperCase();
-          const cantidad = parseFloat(row[1]) || 0;
-          const precio = parseFloat(row[2]) || 0;
+        const materialNombre = (row[0] || '').toString().trim().toUpperCase();
+        const cantidad = parseFloat(row[1]) || 0;
+        const precio = parseFloat(row[2]) || 0;
 
-          if (!materialNombre) continue;
+        if (!materialNombre) continue;
 
-          // Buscar coincidencia exacta
-          const matEncontrado = materialesActualizados.find(m => 
-            m.nombre.toUpperCase() === materialNombre
-          );
+        // Buscar coincidencia exacta
+        const matEncontrado = materialesActualizados.find(m => 
+          m.nombre.toUpperCase() === materialNombre
+        );
 
-          if (matEncontrado) {
-            matEncontrado.cantidad = cantidad;
-            preciosActualizados[matEncontrado.nombre] = precio;
-            actualizados++;
-          }
+        if (matEncontrado) {
+          matEncontrado.cantidad = cantidad;
+          preciosActualizados[matEncontrado.nombre] = precio;
+          actualizados++;
         }
+      }
 
-        setMateriales(materialesActualizados);
-        setPrecios(preciosActualizados);
-        localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
-        calcularTotales(materialesActualizados, preciosActualizados);
+      setMateriales(materialesActualizados);
+      setPrecios(preciosActualizados);
+      localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
+      calcularTotales(materialesActualizados, preciosActualizados);
 
-        alert(`✅ Datos importados. Se actualizaron ${actualizados} materiales.`);
-      };
-      fileReader.readAsArrayBuffer(file);
+      alert(`✅ Datos importados. Se actualizaron ${actualizados} materiales.`);
     } catch (error) {
       console.error('Error al importar:', error);
       alert('❌ Error al procesar el Excel.');
