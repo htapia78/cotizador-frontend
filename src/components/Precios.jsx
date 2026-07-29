@@ -164,49 +164,65 @@ export default function Precios({ proyectoId }) {
 
         let materialesDelPdf = [];
 
-        // Extraer TODO el texto
-        let textoCompleto = '';
+        // Extraer línea por línea
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
-          const texto = textContent.items.map(item => item.str).join(' ');
-          textoCompleto += '\n' + texto;
-        }
+          
+          // Agrupar items por Y para reconstruir líneas
+          const lineasMap = {};
+          textContent.items.forEach(item => {
+            const y = Math.round(item.y);
+            if (!lineasMap[y]) lineasMap[y] = [];
+            lineasMap[y].push(item.str);
+          });
 
-        // Patrón: código (5 dígitos) + descripción + cantidad + % + precios
-        // Más específico para capturar la descripción correctamente
-        const lineRegex = /(\d{5})\s+([A-Z\s\-\/\(\)0-9]+?)\s+(\d+)\s+\d+%\s+\$?([\d.]+)\s+\$/g;
-        
-        let match;
-        while ((match = lineRegex.exec(textoCompleto)) !== null) {
-          const codigo = match[1];
-          let descripcion = match[2].trim().toUpperCase();
-          const precio = parseFloat(match[4].replace(/\./g, ''));
+          // Procesar cada línea de arriba a abajo
+          Object.keys(lineasMap)
+            .sort((a, b) => b - a)
+            .forEach(y => {
+              const lineaCompleta = lineasMap[y].join(' ').trim();
+              
+              // Patrón específico del PDF Belgrano:
+              // XXXXX DESCRIPCIÓN ... CANT % $PRECIO $TOTAL
+              // Buscar: 5 dígitos al inicio + descripción + números + % + $
+              const match = lineaCompleta.match(/^(\d{5})\s+(.+?)\s+(\d{1,4})\s+(\d{1,2})%\s+\$[\d.]+/);
+              
+              if (match) {
+                const codigo = match[1];
+                let descripcion = match[2].trim().toUpperCase();
+                const cantidad = match[3];
+                const bonif = match[4];
 
-          // Limpiar descripción: remover números finales (pueden ser cantidad)
-          descripcion = descripcion.replace(/\s+\d+\s*$/, '').trim();
+                // Extraer precio (el primero después del %)
+                const precioMatch = lineaCompleta.match(/(\d{1,2})%\s+\$([\d.]+)/);
+                if (!precioMatch) return;
 
-          if (precio > 0 && descripcion.length > 3) {
-            materialesDelPdf.push({
-              codigo,
-              descripcion,
-              precio
+                const precioStr = precioMatch[2].replace(/\./g, '');
+                const precio = parseFloat(precioStr);
+
+                if (precio > 0 && descripcion.length > 3) {
+                  materialesDelPdf.push({
+                    codigo,
+                    descripcion,
+                    precio
+                  });
+                  console.log(`✓ ${codigo} | ${descripcion.substring(0, 60)} | $${precio}`);
+                }
+              }
             });
-            console.log(`✓ ${codigo} | ${descripcion.substring(0, 60)} | $${precio}`);
-          }
         }
 
         console.log(`✅ Extraídos ${materialesDelPdf.length} precios del PDF`);
-        console.log('Primeros 5:', materialesDelPdf.slice(0, 5));
 
-        // Matching mejorado
+        // Matching
         const preciosActualizados = { ...precios };
         let actualizados = 0;
 
         materiales.forEach(mat => {
           const nombreUpper = mat.nombre.toUpperCase();
 
-          // Búsqueda 1: Exacta
+          // Búsqueda exacta
           let encontrado = materialesDelPdf.find(p => 
             p.descripcion === nombreUpper
           );
@@ -214,33 +230,18 @@ export default function Precios({ proyectoId }) {
           if (encontrado) {
             preciosActualizados[mat.nombre] = encontrado.precio;
             actualizados++;
-            console.log(`✓ EXACTO: ${mat.nombre}`);
             return;
           }
 
-          // Búsqueda 2: Contención (si el nombre contiene la descripción o viceversa)
+          // Búsqueda por contención
           encontrado = materialesDelPdf.find(p => 
-            nombreUpper.includes(p.descripcion) || 
-            p.descripcion.includes(nombreUpper)
+            nombreUpper.includes(p.descripcion) || p.descripcion.includes(nombreUpper)
           );
 
           if (encontrado) {
             preciosActualizados[mat.nombre] = encontrado.precio;
             actualizados++;
-            console.log(`~ PARCIAL: ${mat.nombre} ← ${encontrado.descripcion}`);
             return;
-          }
-
-          // Búsqueda 3: Similitud de inicio (primeras palabras)
-          encontrado = materialesDelPdf.find(p => {
-            const minLen = Math.min(p.descripcion.length, nombreUpper.length);
-            return minLen > 10 && p.descripcion.substring(0, minLen) === nombreUpper.substring(0, minLen);
-          });
-
-          if (encontrado) {
-            preciosActualizados[mat.nombre] = encontrado.precio;
-            actualizados++;
-            console.log(`≈ SIMILITUD: ${mat.nombre} ← ${encontrado.descripcion}`);
           }
         });
 
