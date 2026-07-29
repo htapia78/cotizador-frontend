@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 
 const CATALOGO = [
   { codigo: '00978', nombre: 'CAJA OCTOGONAL GRANDE METALICA', unidad: 'un', precio: 610.0 },
@@ -94,6 +95,7 @@ export default function MaterialesSinReceta({ proyectoId }) {
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [nuevaCantidad, setNuevaCantidad] = useState('');
   const [nuevaUnidad, setNuevaUnidad] = useState('un');
+  const [cargando, setCargando] = useState(false);
   const storageKey = `materiales-sin-receta-${proyectoId}`;
 
   useEffect(() => {
@@ -140,6 +142,50 @@ export default function MaterialesSinReceta({ proyectoId }) {
     setMostrarSugerencias(false);
   };
 
+  const handleImportarExcel = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setCargando(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      const materialesImportados = [];
+
+      // Saltar header (fila 0)
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length < 2) continue;
+
+        const nombre = (row[0] || '').toString().trim();
+        const cantidad = parseFloat(row[1]) || 0;
+
+        if (!nombre) continue;
+
+        materialesImportados.push({
+          id: Date.now() + i,
+          nombre: nombre,
+          cantidad: cantidad,
+          unidad: 'un'
+        });
+      }
+
+      setMateriales(materialesImportados);
+      localStorage.setItem(storageKey, JSON.stringify(materialesImportados));
+
+      alert(`✅ Excel importado. Se cargaron ${materialesImportados.length} materiales.`);
+    } catch (error) {
+      console.error('Error al importar:', error);
+      alert('❌ Error al procesar el Excel.');
+    } finally {
+      setCargando(false);
+      event.target.value = '';
+    }
+  };
+
   const handleEliminar = (id) => {
     const material = materiales.find(m => m.id === id);
     if (window.confirm(`¿Eliminar "${material.nombre}"? Esta acción no se puede deshacer.`)) {
@@ -151,8 +197,32 @@ export default function MaterialesSinReceta({ proyectoId }) {
 
   return (
     <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-      <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>📦 Materiales sin Receta</h2>
-      <p style={{ color: '#666', marginBottom: '24px' }}>Selecciona del catálogo o agrega manualmente.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div>
+          <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>📦 Materiales sin Receta</h2>
+          <p style={{ color: '#666' }}>Selecciona del catálogo, agrega manualmente o importa Excel</p>
+        </div>
+        <label style={{
+          background: '#8b5cf6',
+          color: 'white',
+          padding: '10px 20px',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: cargando ? 'not-allowed' : 'pointer',
+          fontWeight: '600',
+          opacity: cargando ? 0.6 : 1,
+          fontSize: '13px'
+        }}>
+          📥 {cargando ? 'Importando...' : 'Importar Excel'}
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={handleImportarExcel}
+            disabled={cargando}
+            style={{ display: 'none' }}
+          />
+        </label>
+      </div>
 
       {/* FORMULARIO */}
       <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '10px', marginBottom: '20px', border: '1px solid #e5e7eb', position: 'relative' }}>
