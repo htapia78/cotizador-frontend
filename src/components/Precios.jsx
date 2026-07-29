@@ -93,6 +93,14 @@ export default function Precios({ proyectoId }) {
     calcularTotales(materiales, preciosActualizados);
   };
 
+  const handleCantidadChange = (nombreMaterial, nuevaCantidad) => {
+    const materialesActualizados = materiales.map(m =>
+      m.nombre === nombreMaterial ? { ...m, cantidad: parseFloat(nuevaCantidad) || 0 } : m
+    );
+    setMateriales(materialesActualizados);
+    calcularTotales(materialesActualizados, precios);
+  };
+
   const handleCargarPdf = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -255,7 +263,22 @@ export default function Precios({ proyectoId }) {
                   return (
                     <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ padding: '12px', color: '#1c2d4f', fontWeight: '500' }}>{material.nombre}</td>
-                      <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>{material.cantidad.toFixed(2)}</td>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={material.cantidad || ''}
+                          onChange={(e) => handleCantidadChange(material.nombre, e.target.value)}
+                          style={{
+                            width: '80px',
+                            padding: '6px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            textAlign: 'center',
+                            fontSize: '12px'
+                          }}
+                        />
+                      </td>
                       <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>{material.unidad}</td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <input
@@ -266,11 +289,11 @@ export default function Precios({ proyectoId }) {
                           placeholder="$"
                           style={{
                             width: '100px',
-                            padding: '8px',
+                            padding: '6px',
                             border: '1px solid #d1d5db',
                             borderRadius: '4px',
                             textAlign: 'center',
-                            fontSize: '13px'
+                            fontSize: '12px'
                           }}
                         />
                       </td>
