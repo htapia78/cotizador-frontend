@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configurar worker de PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export default function Precios({ proyectoId }) {
@@ -114,7 +113,6 @@ export default function Precios({ proyectoId }) {
       const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
       const preciosActualizados = { ...precios };
-      const materialesActualizados = materiales.map(m => ({ ...m }));
       let actualizados = 0;
 
       // Saltar header (fila 0)
@@ -122,30 +120,28 @@ export default function Precios({ proyectoId }) {
         const row = rows[i];
         if (!row || row.length < 3) continue;
 
-        const materialNombre = (row[0] || '').toString().trim().toUpperCase();
+        const materialNombre = (row[0] || '').toString().trim();
         const cantidad = parseFloat(row[1]) || 0;
         const precio = parseFloat(row[2]) || 0;
 
         if (!materialNombre) continue;
 
         // Buscar coincidencia exacta
-        const matEncontrado = materialesActualizados.find(m => 
-          m.nombre.toUpperCase() === materialNombre
+        const matEncontrado = materiales.find(m => 
+          m.nombre.toUpperCase() === materialNombre.toUpperCase()
         );
 
         if (matEncontrado) {
-          matEncontrado.cantidad = cantidad;
           preciosActualizados[matEncontrado.nombre] = precio;
           actualizados++;
         }
       }
 
-      setMateriales(materialesActualizados);
       setPrecios(preciosActualizados);
       localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
-      calcularTotales(materialesActualizados, preciosActualizados);
+      calcularTotales(materiales, preciosActualizados);
 
-      alert(`✅ Datos importados. Se actualizaron ${actualizados} materiales.`);
+      alert(`✅ Datos importados. Se actualizaron ${actualizados} precios.`);
     } catch (error) {
       console.error('Error al importar:', error);
       alert('❌ Error al procesar el Excel.');
@@ -172,22 +168,29 @@ export default function Precios({ proyectoId }) {
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
-          const texto = textContent.items.map(item => item.str).join(' ');
+          const texto = textContent.items.map(item => item.str).join('');
 
-          // Parsear líneas buscando el patrón: código + descripción + cantidad + precio
-          const lineas = texto.split('\n');
-          for (let i = 0; i < lineas.length; i++) {
-            const linea = lineas[i];
-            const match = linea.match(/^(\d+)\s+(.+?)\s+(\d+)\s+\d+%\s+\$?([\d.,]+)\s+\$/);
+          // Búscar el patrón de materiales con precios
+          // Patrón: código (números) + descripción + cantidad + bonificación + precio sin iva + precio total
+          const regex = /(\d+)\s+([A-Z\s\/\-\(\)0-9]+?)\s+(\d+)\s+(\d+)%\s+\$?([\d.]+)\s+\$/gi;
+          
+          let match;
+          while ((match = regex.exec(texto)) !== null) {
+            const codigo = match[1];
+            const descripcion = match[2].trim();
+            const cantidad = match[3];
+            const bonif = match[4];
+            const precioSinIva = parseFloat(match[5].replace(/\./g, ''));
             
-            if (match) {
-              const descripcion = match[2].trim().toUpperCase();
-              const precio = parseFloat(match[4].replace(/\./g, '').replace(',', '.'));
-              
-              materialesDelPdf[descripcion] = precio;
+            // Usar la descripción como clave
+            if (descripcion && !materialesDelPdf[descripcion]) {
+              materialesDelPdf[descripcion] = precioSinIva;
+              console.log(`✓ ${descripcion}: $${precioSinIva}`);
             }
           }
         }
+
+        console.log(`Total encontrados en PDF: ${Object.keys(materialesDelPdf).length}`);
 
         // Matching: asociar materiales del PDF con materiales de la cotización
         const preciosActualizados = { ...precios };
@@ -196,9 +199,26 @@ export default function Precios({ proyectoId }) {
         materiales.forEach(mat => {
           const nombreUpper = mat.nombre.toUpperCase();
           
-          if (materialesDelPdf[nombreUpper]) {
-            preciosActualizados[mat.nombre] = materialesDelPdf[nombreUpper];
-            actualizados++;
+          // Búsqueda exacta primero
+          for (const [descPdf, precioPdf] of Object.entries(materialesDelPdf)) {
+            if (descPdf.toUpperCase() === nombreUpper) {
+              preciosActualizados[mat.nombre] = precioPdf;
+              actualizados++;
+              console.log(`✓ Matched: ${mat.nombre}`);
+              break;
+            }
+          }
+
+          // Si no encuentra, intenta búsqueda parcial
+          if (!preciosActualizados[mat.nombre]) {
+            for (const [descPdf, precioPdf] of Object.entries(materialesDelPdf)) {
+              if (nombreUpper.includes(descPdf.toUpperCase()) || descPdf.toUpperCase().includes(nombreUpper)) {
+                preciosActualizados[mat.nombre] = precioPdf;
+                actualizados++;
+                console.log(`~ Partial match: ${mat.nombre} ← ${descPdf}`);
+                break;
+              }
+            }
           }
         });
 
@@ -206,7 +226,7 @@ export default function Precios({ proyectoId }) {
         localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
         calcularTotales(materiales, preciosActualizados);
 
-        alert(`✅ Presupuesto cargado. Se actualizaron ${actualizados} precios.`);
+        alert(`✅ Presupuesto cargado. Se actualizaron ${actualizados} precios de ${materiales.length} materiales.`);
       };
       fileReader.readAsArrayBuffer(file);
     } catch (error) {
@@ -223,7 +243,7 @@ export default function Precios({ proyectoId }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>💲 Precios y Cotización</h2>
-          <p style={{ color: '#666' }}>Carga datos directamente o desde presupuesto</p>
+          <p style={{ color: '#666' }}>Carga datos directamente o desde presupuesto PDF</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <label style={{
