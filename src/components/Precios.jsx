@@ -110,38 +110,38 @@ export default function Precios({ proyectoId }) {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: 'array' });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const rows = XLSX.utils.sheet_to_json(worksheet);
 
       const preciosActualizados = { ...precios };
       let actualizados = 0;
 
-      // Saltar header (fila 0)
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length < 3) continue;
+      // Iterar filas (cada fila es un objeto con las columnas como keys)
+      rows.forEach(row => {
+        // Leer columnas del Excel
+        const descripcion = (row['Descripción'] || row['descripción'] || '').toString().trim();
+        const precioSinIva = parseFloat(row['P. sin IVA'] || row['P. sin Iva'] || row['P sin IVA'] || 0);
 
-        const materialNombre = (row[0] || '').toString().trim();
-        const cantidad = parseFloat(row[1]) || 0;
-        const precio = parseFloat(row[2]) || 0;
+        if (!descripcion || precioSinIva <= 0) return;
 
-        if (!materialNombre) continue;
-
-        // Buscar coincidencia exacta
+        // Buscar coincidencia en materiales
         const matEncontrado = materiales.find(m => 
-          m.nombre.toUpperCase() === materialNombre.toUpperCase()
+          m.nombre.toUpperCase() === descripcion.toUpperCase()
         );
 
         if (matEncontrado) {
-          preciosActualizados[matEncontrado.nombre] = precio;
+          preciosActualizados[matEncontrado.nombre] = precioSinIva;
           actualizados++;
+          console.log(`✓ ${descripcion} → $${precioSinIva}`);
         }
-      }
+      });
+
+      console.log(`✅ Importados ${actualizados}/${materiales.length} precios`);
 
       setPrecios(preciosActualizados);
       localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
       calcularTotales(materiales, preciosActualizados);
 
-      alert(`✅ Datos importados. Se actualizaron ${actualizados} precios.`);
+      alert(`✅ Excel importado.\nSe actualizaron ${actualizados} de ${materiales.length} precios.`);
     } catch (error) {
       console.error('Error al importar:', error);
       alert('❌ Error al procesar el Excel.');
