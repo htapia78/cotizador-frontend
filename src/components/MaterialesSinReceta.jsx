@@ -278,14 +278,53 @@ export default function MaterialesSinReceta({ proyectoId }) {
               padding: '12px',
               borderRadius: '6px',
               border: '1px solid #e5e7eb',
-              display: 'flex',
-              justifyContent: 'space-between',
+              display: 'grid',
+              gridTemplateColumns: '1fr 70px 60px 40px',
+              gap: '8px',
               alignItems: 'center'
             }}>
               <div>
                 <strong style={{ color: '#1c2d4f', fontSize: '13px' }}>{mat.nombre}</strong>
-                <span style={{ color: '#999', marginLeft: '10px', fontSize: '12px' }}>{mat.cantidad} {mat.unidad}</span>
               </div>
+              <input
+                type="number"
+                step="0.1"
+                value={mat.cantidad}
+                onChange={(e) => {
+                  const materialesActualizados = materiales.map(m =>
+                    m.id === mat.id ? { ...m, cantidad: parseFloat(e.target.value) || 0 } : m
+                  );
+                  setMateriales(materialesActualizados);
+                  localStorage.setItem(storageKey, JSON.stringify(materialesActualizados));
+                }}
+                style={{
+                  padding: '6px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  textAlign: 'center'
+                }}
+              />
+              <select
+                value={mat.unidad}
+                onChange={(e) => {
+                  const materialesActualizados = materiales.map(m =>
+                    m.id === mat.id ? { ...m, unidad: e.target.value } : m
+                  );
+                  setMateriales(materialesActualizados);
+                  localStorage.setItem(storageKey, JSON.stringify(materialesActualizados));
+                }}
+                style={{
+                  padding: '6px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '12px'
+                }}
+              >
+                {UNIDADES.map(u => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
               <button
                 onClick={() => handleEliminar(mat.id)}
                 style={{
