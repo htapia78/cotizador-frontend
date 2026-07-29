@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 export default function Computo({ proyectoId }) {
   const [materiales, setMateriales] = useState([]);
-  const [cargando, setCargando] = useState(false);
-
-  const sinRecetaKey = `materiales-sin-receta-${proyectoId}`;
 
   useEffect(() => {
     cargarDatos();
@@ -16,6 +13,7 @@ export default function Computo({ proyectoId }) {
   const cargarDatos = () => {
     const bocasKey = `bocas-${proyectoId}`;
     const recetasKey = `recetas-${proyectoId}`;
+    const sinRecetaKey = `materiales-sin-receta-${proyectoId}`;
 
     const conteos = JSON.parse(localStorage.getItem(bocasKey) || '{}');
     const recetas = JSON.parse(localStorage.getItem(recetasKey) || '{}');
@@ -61,65 +59,6 @@ export default function Computo({ proyectoId }) {
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
     setMateriales(materialesArray);
-  };
-
-  const handleImportarExcel = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    setCargando(true);
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-      const materialesImportados = [];
-
-      // Saltar header (fila 0)
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length < 2) continue;
-
-        const nombre = (row[0] || '').toString().trim();
-        const cantidad = parseFloat(row[1]) || 0;
-
-        if (!nombre) continue;
-
-        materialesImportados.push({
-          id: Date.now() + i,
-          nombre: nombre,
-          cantidad: cantidad,
-          unidad: 'un'
-        });
-      }
-
-      // Guardar en materiales-sin-receta
-      localStorage.setItem(sinRecetaKey, JSON.stringify(materialesImportados));
-      cargarDatos();
-
-      alert(`✅ Excel importado. Se cargaron ${materialesImportados.length} materiales en "Sin Receta".`);
-    } catch (error) {
-      console.error('Error al importar:', error);
-      alert('❌ Error al procesar el Excel.');
-    } finally {
-      setCargando(false);
-      event.target.value = '';
-    }
-  };
-
-  const handleActualizarCantidad = (nombre, nuevaCantidad) => {
-    const materialesActualizados = materiales.map(m =>
-      m.nombre === nombre ? { ...m, cantidad: parseFloat(nuevaCantidad) || 0 } : m
-    );
-    setMateriales(materialesActualizados);
-
-    // Actualizar en localStorage (tanto bocas como sin-receta)
-    const sinReceta = JSON.parse(localStorage.getItem(sinRecetaKey) || '[]');
-    const sinRecetaActualizado = sinReceta.map(m =>
-      m.nombre === nombre ? { ...m, cantidad: parseFloat(nuevaCantidad) || 0 } : m
-    );
-    localStorage.setItem(sinRecetaKey, JSON.stringify(sinRecetaActualizado));
   };
 
   const descargarExcel = () => {
@@ -173,29 +112,9 @@ export default function Computo({ proyectoId }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>📊 Cómputo de Materiales</h2>
-          <p style={{ color: '#666' }}>Total de materiales necesarios para el proyecto</p>
+          <p style={{ color: '#666' }}>Total de materiales para el proyecto (Bocas + Recetas + Sin Receta)</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <label style={{
-            background: '#8b5cf6',
-            color: 'white',
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: cargando ? 'not-allowed' : 'pointer',
-            fontWeight: '600',
-            opacity: cargando ? 0.6 : 1,
-            fontSize: '13px'
-          }}>
-            📥 {cargando ? 'Importando...' : 'Importar Excel'}
-            <input
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleImportarExcel}
-              disabled={cargando}
-              style={{ display: 'none' }}
-            />
-          </label>
           <button
             onClick={descargarExcel}
             style={{
@@ -248,22 +167,7 @@ export default function Computo({ proyectoId }) {
                 {materiales.map((material, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
                     <td style={{ padding: '12px', color: '#1c2d4f', fontWeight: '500' }}>{material.nombre}</td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={material.cantidad || ''}
-                        onChange={(e) => handleActualizarCantidad(material.nombre, e.target.value)}
-                        style={{
-                          width: '100px',
-                          padding: '6px',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '4px',
-                          textAlign: 'center',
-                          fontSize: '12px'
-                        }}
-                      />
-                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center', color: '#1c2d4f' }}>{material.cantidad.toFixed(2)}</td>
                     <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>{material.unidad}</td>
                   </tr>
                 ))}
