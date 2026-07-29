@@ -162,103 +162,122 @@ export default function Precios({ proyectoId }) {
         const pdfData = e.target.result;
         const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
-        let materialesDelPdf = [];
+        let textoCompleto = '';
 
         // Extraer texto de todas las páginas
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
-          
-          // Agrupar items por línea (items con Y similar están en la misma línea)
-          const lineas = {};
-          textContent.items.forEach(item => {
-            const y = Math.round(item.y);
-            if (!lineas[y]) lineas[y] = [];
-            lineas[y].push(item.str);
-          });
+          const texto = textContent.items.map(item => item.str).join(' ');
+          textoCompleto += '\n' + texto;
+        }
 
-          // Procesar cada línea
-          Object.keys(lineas).sort((a, b) => b - a).forEach(y => {
-            const lineaTexto = lineas[y].join('').trim();
-            
-            // Patrón: 5 dígitos + descripción + números (cantidad) + números (%) + $ + número (precio)
-            // Mejorado para captar mejor
-            const match = lineaTexto.match(/^(\d{5})\s+(.+?)\s+(\d+)\s+(\d+)%\s+\$?([\d.]+)\s+\$/);
-            
-            if (match) {
-              const codigo = match[1];
-              const descripcion = match[2].trim().toUpperCase();
-              const cantidad = match[3];
-              const bonif = match[4];
-              const precioStr = match[5];
-              
-              // Limpiar precio (puede tener puntos como miles)
-              const precioSinIva = parseFloat(precioStr.replace(/\./g, ''));
-              
-              materialesDelPdf.push({
-                codigo,
-                descripcion,
-                precio: precioSinIva
-              });
-              
-              console.log(`✓ ${codigo} | ${descripcion} | $${precioSinIva}`);
-            }
-          });
+        console.log('Texto del PDF (primeros 500 chars):');
+        console.log(textoCompleto.substring(0, 500));
+
+        // Dividir en líneas
+        const lineas = textoCompleto.split('\n');
+        let materialesDelPdf = [];
+
+        // Buscar líneas con formato de producto
+        for (let i = 0; i < lineas.length; i++) {
+          const linea = lineas[i].trim();
+          
+          // Debe empezar con 5 dígitos (código)
+          if (!linea.match(/^\d{5}/)) continue;
+          
+          // Buscar patrón: código + descripción + cantidad + % + $ + precio
+          // Más flexible: solo buscar números y $
+          const parts = linea.split(/\s+/);
+          if (parts.length < 5) continue;
+
+          const codigo = parts[0];
+          
+          // El precio debe estar después de un $
+          const precioMatch = linea.match(/\$(\d+[.,]\d+|\d+)/);
+          if (!precioMatch) continue;
+
+          const precioStr = precioMatch[1].replace(/,/g, '.');
+          const precio = parseFloat(precioStr);
+
+          // Descripción: todo entre código y número de cantidad (antes del %)
+          const descMatch = linea.match(/^\d{5}\s+(.+?)\s+\d+\s+\d+%/);
+          let descripcion = '';
+          
+          if (descMatch) {
+            descripcion = descMatch[1].trim().toUpperCase();
+          } else {
+            // Si no hay match exacto, tomar todo entre código y último $
+            const afterCodigo = linea.substring(5).trim();
+            const beforePrice = afterCodigo.substring(0, afterCodigo.lastIndexOf('$')).trim();
+            descripcion = beforePrice.split(/\d+\s*$/)[0].trim().toUpperCase();
+          }
+
+          if (descripcion && descripcion.length > 3) {
+            materialesDelPdf.push({
+              codigo,
+              descripcion,
+              precio
+            });
+            console.log(`✓ ${codigo} | ${descripcion.substring(0, 50)} | $${precio}`);
+          }
         }
 
         console.log(`Total extraídos: ${materialesDelPdf.length} materiales`);
-        console.log('Materiales del PDF:', materialesDelPdf);
 
-        // Matching: asociar con materiales de la cotización
+        // Matching: buscar coincidencias
         const preciosActualizados = { ...precios };
         let actualizados = 0;
 
         materiales.forEach(mat => {
           const nombreUpper = mat.nombre.toUpperCase();
           
-          // Búsqueda exacta
-          const exacto = materialesDelPdf.find(p => 
+          // Búsqueda 1: Coincidencia exacta
+          let encontrado = materialesDelPdf.find(p => 
             p.descripcion === nombreUpper
           );
           
-          if (exacto) {
-            preciosActualizados[mat.nombre] = exacto.precio;
+          if (encontrado) {
+            preciosActualizados[mat.nombre] = encontrado.precio;
             actualizados++;
             console.log(`✓ EXACTO: ${mat.nombre}`);
             return;
           }
 
-          // Búsqueda por código (si el material tiene código en el nombre o lo conocemos)
-          const porCodigo = materialesDelPdf.find(p => 
-            nombreUpper.includes(p.codigo) || p.descripcion.includes(nombreUpper)
-          );
+          // Búsqueda 2: El nombre contiene la descripción del PDF o viceversa
+          encontrado = materialesDelPdf.find(p => {
+            const desc = p.descripcion;
+            return nombreUpper.includes(desc) || desc.includes(nombreUpper) || 
+                   nombreUpper.substring(0, 20) === desc.substring(0, 20);
+          });
           
-          if (porCodigo) {
-            preciosActualizados[mat.nombre] = porCodigo.precio;
+          if (encontrado) {
+            preciosActualizados[mat.nombre] = encontrado.precio;
             actualizados++;
-            console.log(`~ PARCIAL: ${mat.nombre} ← ${porCodigo.descripcion}`);
+            console.log(`~ PARCIAL: ${mat.nombre} ← ${encontrado.descripcion}`);
             return;
           }
         });
 
+        console.log(`\n=== RESULTADO ===`);
         console.log(`Actualizados: ${actualizados}/${materiales.length}`);
 
         setPrecios(preciosActualizados);
         localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
         calcularTotales(materiales, preciosActualizados);
 
-        alert(`✅ Presupuesto cargado. Se actualizaron ${actualizados} precios.`);
+        alert(`✅ Presupuesto cargado.\nSe actualizaron ${actualizados} de ${materiales.length} precios.`);
       };
       fileReader.readAsArrayBuffer(file);
     } catch (error) {
       console.error('Error al procesar PDF:', error);
-      alert('❌ Error al procesar el PDF. Intenta nuevamente.');
+      alert('❌ Error al procesar el PDF.\n\nSi persiste, usa la opción de importar Excel en lugar de PDF.');
     } finally {
       setCargando(false);
       event.target.value = '';
     }
   };
-
+  
   return (
     <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
