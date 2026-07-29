@@ -5,35 +5,17 @@ import autoTable from 'jspdf-autotable';
 
 export default function Computo({ proyectoId }) {
   const [materiales, setMateriales] = useState([]);
-  const [totalSinIva, setTotalSinIva] = useState(0);
-  const [totalIva, setTotalIva] = useState(0);
-  const [totalConIva, setTotalConIva] = useState(0);
   const [cargando, setCargando] = useState(false);
 
-  const storageKeyMateriales = `materiales-cómputo-${proyectoId}`;
+  const sinRecetaKey = `materiales-sin-receta-${proyectoId}`;
 
   useEffect(() => {
     cargarDatos();
   }, [proyectoId]);
 
   const cargarDatos = () => {
-    // Primero intenta cargar materiales importados
-    const materialesImportados = localStorage.getItem(storageKeyMateriales);
-    if (materialesImportados) {
-      try {
-        const parsed = JSON.parse(materialesImportados);
-        setMateriales(parsed);
-        calcularTotales(parsed);
-        return;
-      } catch (e) {
-        console.error('Error al cargar materiales importados:', e);
-      }
-    }
-
-    // Si no hay importados, calcula desde bocas+recetas+sin receta
     const bocasKey = `bocas-${proyectoId}`;
     const recetasKey = `recetas-${proyectoId}`;
-    const sinRecetaKey = `materiales-sin-receta-${proyectoId}`;
 
     const conteos = JSON.parse(localStorage.getItem(bocasKey) || '{}');
     const recetas = JSON.parse(localStorage.getItem(recetasKey) || '{}');
@@ -41,6 +23,7 @@ export default function Computo({ proyectoId }) {
 
     const materiales_calculados = {};
 
+    // Sumar materiales con receta
     Object.entries(conteos).forEach(([key, cantidad]) => {
       const [zonaId, tipoId] = key.split('-').map(Number);
       const recetasDeTipo = recetas[tipoId] || recetas[`${tipoId}`] || [];
@@ -60,6 +43,7 @@ export default function Computo({ proyectoId }) {
       });
     });
 
+    // Sumar materiales sin receta (importados)
     sinReceta.forEach(material => {
       const materialKey = material.nombre;
       if (!materiales_calculados[materialKey]) {
@@ -77,16 +61,6 @@ export default function Computo({ proyectoId }) {
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
     setMateriales(materialesArray);
-    calcularTotales(materialesArray);
-  };
-
-  const calcularTotales = (mats) => {
-    let totalSin = 0;
-    mats.forEach(mat => {
-      totalSin += mat.cantidad;
-    });
-    
-    setTotalSinIva(totalSin);
   };
 
   const handleImportarExcel = async (event) => {
@@ -113,17 +87,18 @@ export default function Computo({ proyectoId }) {
         if (!nombre) continue;
 
         materialesImportados.push({
+          id: Date.now() + i,
           nombre: nombre,
           cantidad: cantidad,
           unidad: 'un'
         });
       }
 
-      setMateriales(materialesImportados);
-      localStorage.setItem(storageKeyMateriales, JSON.stringify(materialesImportados));
-      calcularTotales(materialesImportados);
+      // Guardar en materiales-sin-receta
+      localStorage.setItem(sinRecetaKey, JSON.stringify(materialesImportados));
+      cargarDatos();
 
-      alert(`✅ Excel importado. Se cargaron ${materialesImportados.length} materiales.`);
+      alert(`✅ Excel importado. Se cargaron ${materialesImportados.length} materiales en "Sin Receta".`);
     } catch (error) {
       console.error('Error al importar:', error);
       alert('❌ Error al procesar el Excel.');
@@ -133,20 +108,18 @@ export default function Computo({ proyectoId }) {
     }
   };
 
-  const handleActualizarCantidad = (index, nuevaCantidad) => {
-    const materialesActualizados = materiales.map((m, i) =>
-      i === index ? { ...m, cantidad: parseFloat(nuevaCantidad) || 0 } : m
+  const handleActualizarCantidad = (nombre, nuevaCantidad) => {
+    const materialesActualizados = materiales.map(m =>
+      m.nombre === nombre ? { ...m, cantidad: parseFloat(nuevaCantidad) || 0 } : m
     );
     setMateriales(materialesActualizados);
-    localStorage.setItem(storageKeyMateriales, JSON.stringify(materialesActualizados));
-    calcularTotales(materialesActualizados);
-  };
 
-  const handleLimpiarImport = () => {
-    if (window.confirm('¿Limpiar datos importados y volver a calcular desde Bocas/Recetas?')) {
-      localStorage.removeItem(storageKeyMateriales);
-      cargarDatos();
-    }
+    // Actualizar en localStorage (tanto bocas como sin-receta)
+    const sinReceta = JSON.parse(localStorage.getItem(sinRecetaKey) || '[]');
+    const sinRecetaActualizado = sinReceta.map(m =>
+      m.nombre === nombre ? { ...m, cantidad: parseFloat(nuevaCantidad) || 0 } : m
+    );
+    localStorage.setItem(sinRecetaKey, JSON.stringify(sinRecetaActualizado));
   };
 
   const descargarExcel = () => {
@@ -280,7 +253,7 @@ export default function Computo({ proyectoId }) {
                         type="number"
                         step="0.1"
                         value={material.cantidad || ''}
-                        onChange={(e) => handleActualizarCantidad(idx, e.target.value)}
+                        onChange={(e) => handleActualizarCantidad(material.nombre, e.target.value)}
                         style={{
                           width: '100px',
                           padding: '6px',
@@ -298,26 +271,9 @@ export default function Computo({ proyectoId }) {
             </table>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-              <p style={{ margin: '0 0 8px 0', color: '#999', fontSize: '12px', fontWeight: '600' }}>TOTAL DE ÍTEMS</p>
-              <h3 style={{ margin: 0, color: '#1c2d4f', fontSize: '20px' }}>{materiales.length}</h3>
-            </div>
-            <button
-              onClick={handleLimpiarImport}
-              style={{
-                background: '#fee2e2',
-                color: '#991b1b',
-                padding: '12px',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '13px'
-              }}
-            >
-              🗑️ Limpiar Datos Importados
-            </button>
+          <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+            <p style={{ margin: '0 0 8px 0', color: '#999', fontSize: '12px', fontWeight: '600' }}>TOTAL DE ÍTEMS</p>
+            <h3 style={{ margin: 0, color: '#1c2d4f', fontSize: '20px' }}>{materiales.length}</h3>
           </div>
         </>
       )}
