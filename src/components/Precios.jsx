@@ -101,6 +101,63 @@ export default function Precios({ proyectoId }) {
     calcularTotales(materialesActualizados, precios);
   };
 
+  const handleImportarDatos = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setCargando(true);
+    try {
+      const fileReader = new FileReader();
+      fileReader.onload = (e) => {
+        const data = e.target.result;
+        const workbook = window.XLSX.read(data, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = window.XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        const preciosActualizados = { ...precios };
+        const materialesActualizados = materiales.map(m => ({ ...m }));
+        let actualizados = 0;
+
+        // Saltar header (fila 0)
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length < 3) continue;
+
+          const materialNombre = (row[0] || '').toString().trim().toUpperCase();
+          const cantidad = parseFloat(row[1]) || 0;
+          const precio = parseFloat(row[2]) || 0;
+
+          if (!materialNombre) continue;
+
+          // Buscar coincidencia exacta
+          const matEncontrado = materialesActualizados.find(m => 
+            m.nombre.toUpperCase() === materialNombre
+          );
+
+          if (matEncontrado) {
+            matEncontrado.cantidad = cantidad;
+            preciosActualizados[matEncontrado.nombre] = precio;
+            actualizados++;
+          }
+        }
+
+        setMateriales(materialesActualizados);
+        setPrecios(preciosActualizados);
+        localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
+        calcularTotales(materialesActualizados, preciosActualizados);
+
+        alert(`✅ Datos importados. Se actualizaron ${actualizados} materiales.`);
+      };
+      fileReader.readAsArrayBuffer(file);
+    } catch (error) {
+      console.error('Error al importar:', error);
+      alert('❌ Error al procesar el Excel.');
+    } finally {
+      setCargando(false);
+      event.target.value = '';
+    }
+  };
+
   const handleCargarPdf = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -124,11 +181,9 @@ export default function Precios({ proyectoId }) {
           const lineas = texto.split('\n');
           for (let i = 0; i < lineas.length; i++) {
             const linea = lineas[i];
-            // Buscar líneas que tienen formato: código (números) ... descripción ... cantidad ... precio
             const match = linea.match(/^(\d+)\s+(.+?)\s+(\d+)\s+\d+%\s+\$?([\d.,]+)\s+\$/);
             
             if (match) {
-              const codigo = match[1];
               const descripcion = match[2].trim().toUpperCase();
               const precio = parseFloat(match[4].replace(/\./g, '').replace(',', '.'));
               
@@ -144,19 +199,9 @@ export default function Precios({ proyectoId }) {
         materiales.forEach(mat => {
           const nombreUpper = mat.nombre.toUpperCase();
           
-          // Búsqueda exacta primero
           if (materialesDelPdf[nombreUpper]) {
             preciosActualizados[mat.nombre] = materialesDelPdf[nombreUpper];
             actualizados++;
-          } else {
-            // Búsqueda por similitud (si no hay coincidencia exacta)
-            for (const [descPdf, precioPdf] of Object.entries(materialesDelPdf)) {
-              if (similitud(nombreUpper, descPdf) > 0.7) {
-                preciosActualizados[mat.nombre] = precioPdf;
-                actualizados++;
-                break;
-              }
-            }
           }
         });
 
@@ -172,40 +217,8 @@ export default function Precios({ proyectoId }) {
       alert('❌ Error al procesar el PDF. Intenta nuevamente.');
     } finally {
       setCargando(false);
-      event.target.value = ''; // Limpiar input
+      event.target.value = '';
     }
-  };
-
-  // Función de similitud entre strings (Levenshtein simplificado)
-  const similitud = (s1, s2) => {
-    const longer = s1.length > s2.length ? s1 : s2;
-    const shorter = s1.length > s2.length ? s2 : s1;
-    
-    if (longer.length === 0) return 1.0;
-    
-    const editDistance = levenshtein(longer, shorter);
-    return (longer.length - editDistance) / parseFloat(longer.length);
-  };
-
-  const levenshtein = (s1, s2) => {
-    const costs = [];
-    for (let i = 0; i <= s1.length; i++) {
-      let lastValue = i;
-      for (let j = 0; j <= s2.length; j++) {
-        if (i === 0) {
-          costs[j] = j;
-        } else if (j > 0) {
-          let newValue = costs[j - 1];
-          if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
-            newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-          }
-          costs[j - 1] = lastValue;
-          lastValue = newValue;
-        }
-      }
-      if (i > 0) costs[s2.length] = lastValue;
-    }
-    return costs[s2.length];
   };
 
   return (
@@ -213,27 +226,48 @@ export default function Precios({ proyectoId }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>💲 Precios y Cotización</h2>
-          <p style={{ color: '#666' }}>Carga el presupuesto del proveedor y gestiona precios</p>
+          <p style={{ color: '#666' }}>Carga datos directamente o desde presupuesto</p>
         </div>
-        <label style={{
-          background: '#2563a8',
-          color: 'white',
-          padding: '10px 20px',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: cargando ? 'not-allowed' : 'pointer',
-          fontWeight: '600',
-          opacity: cargando ? 0.6 : 1
-        }}>
-          📤 {cargando ? 'Cargando...' : 'Cargar Presupuesto PDF'}
-          <input
-            type="file"
-            accept=".pdf"
-            onChange={handleCargarPdf}
-            disabled={cargando}
-            style={{ display: 'none' }}
-          />
-        </label>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <label style={{
+            background: '#8b5cf6',
+            color: 'white',
+            padding: '10px 20px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: cargando ? 'not-allowed' : 'pointer',
+            fontWeight: '600',
+            opacity: cargando ? 0.6 : 1
+          }}>
+            📥 {cargando ? 'Importando...' : 'Importar Excel'}
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleImportarDatos}
+              disabled={cargando}
+              style={{ display: 'none' }}
+            />
+          </label>
+          <label style={{
+            background: '#2563a8',
+            color: 'white',
+            padding: '10px 20px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: cargando ? 'not-allowed' : 'pointer',
+            fontWeight: '600',
+            opacity: cargando ? 0.6 : 1
+          }}>
+            📤 {cargando ? 'Cargando...' : 'Cargar PDF'}
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={handleCargarPdf}
+              disabled={cargando}
+              style={{ display: 'none' }}
+            />
+          </label>
+        </div>
       </div>
 
       {materiales.length === 0 ? (
