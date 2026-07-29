@@ -1,24 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function Computo({ proyectoId }) {
   const [materiales, setMateriales] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [totalSinIva, setTotalSinIva] = useState(0);
+  const [totalIva, setTotalIva] = useState(0);
+  const [totalConIva, setTotalConIva] = useState(0);
+  const [cargando, setCargando] = useState(false);
+
+  const storageKeyMateriales = `materiales-cómputo-${proyectoId}`;
 
   useEffect(() => {
-    calcularComputo();
+    cargarDatos();
   }, [proyectoId]);
 
-  const calcularComputo = () => {
-    const bocasStorageKey = `bocas-${proyectoId}`;
-    const recetasStorageKey = `recetas-${proyectoId}`;
-    const materilesSinRecetaKey = `materiales-sin-receta-${proyectoId}`;
+  const cargarDatos = () => {
+    // Primero intenta cargar materiales importados
+    const materialesImportados = localStorage.getItem(storageKeyMateriales);
+    if (materialesImportados) {
+      try {
+        const parsed = JSON.parse(materialesImportados);
+        setMateriales(parsed);
+        calcularTotales(parsed);
+        return;
+      } catch (e) {
+        console.error('Error al cargar materiales importados:', e);
+      }
+    }
 
-    const conteos = JSON.parse(localStorage.getItem(bocasStorageKey) || '{}');
-    const recetas = JSON.parse(localStorage.getItem(recetasStorageKey) || '{}');
-    const materialesSinReceta = JSON.parse(localStorage.getItem(materilesSinRecetaKey) || '[]');
+    // Si no hay importados, calcula desde bocas+recetas+sin receta
+    const bocasKey = `bocas-${proyectoId}`;
+    const recetasKey = `recetas-${proyectoId}`;
+    const sinRecetaKey = `materiales-sin-receta-${proyectoId}`;
+
+    const conteos = JSON.parse(localStorage.getItem(bocasKey) || '{}');
+    const recetas = JSON.parse(localStorage.getItem(recetasKey) || '{}');
+    const sinReceta = JSON.parse(localStorage.getItem(sinRecetaKey) || '[]');
 
     const materiales_calculados = {};
 
@@ -34,16 +53,15 @@ export default function Computo({ proyectoId }) {
           materiales_calculados[materialKey] = {
             nombre: material.nombre,
             cantidad: 0,
-            unidad: material.unidad || 'm'
+            unidad: material.unidad || 'mts'
           };
         }
         materiales_calculados[materialKey].cantidad += cantidadTotal;
       });
     });
 
-    materialesSinReceta.forEach(material => {
+    sinReceta.forEach(material => {
       const materialKey = material.nombre;
-      
       if (!materiales_calculados[materialKey]) {
         materiales_calculados[materialKey] = {
           nombre: material.nombre,
@@ -59,135 +77,152 @@ export default function Computo({ proyectoId }) {
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
     setMateriales(materialesArray);
-    const totalCalc = materialesArray.reduce((sum, m) => sum + (m.cantidad || 0), 0);
-    setTotal(totalCalc);
+    calcularTotales(materialesArray);
+  };
+
+  const calcularTotales = (mats) => {
+    let totalSin = 0;
+    mats.forEach(mat => {
+      totalSin += mat.cantidad;
+    });
+    
+    setTotalSinIva(totalSin);
+  };
+
+  const handleImportarExcel = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setCargando(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      const materialesImportados = [];
+
+      // Saltar header (fila 0)
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length < 2) continue;
+
+        const nombre = (row[0] || '').toString().trim();
+        const cantidad = parseFloat(row[1]) || 0;
+
+        if (!nombre) continue;
+
+        materialesImportados.push({
+          nombre: nombre,
+          cantidad: cantidad,
+          unidad: 'un'
+        });
+      }
+
+      setMateriales(materialesImportados);
+      localStorage.setItem(storageKeyMateriales, JSON.stringify(materialesImportados));
+      calcularTotales(materialesImportados);
+
+      alert(`✅ Excel importado. Se cargaron ${materialesImportados.length} materiales.`);
+    } catch (error) {
+      console.error('Error al importar:', error);
+      alert('❌ Error al procesar el Excel.');
+    } finally {
+      setCargando(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleActualizarCantidad = (index, nuevaCantidad) => {
+    const materialesActualizados = materiales.map((m, i) =>
+      i === index ? { ...m, cantidad: parseFloat(nuevaCantidad) || 0 } : m
+    );
+    setMateriales(materialesActualizados);
+    localStorage.setItem(storageKeyMateriales, JSON.stringify(materialesActualizados));
+    calcularTotales(materialesActualizados);
+  };
+
+  const handleLimpiarImport = () => {
+    if (window.confirm('¿Limpiar datos importados y volver a calcular desde Bocas/Recetas?')) {
+      localStorage.removeItem(storageKeyMateriales);
+      cargarDatos();
+    }
   };
 
   const descargarExcel = () => {
-    const ws = XLSX.utils.aoa_to_sheet([
-      ['APEXCORE S.A.S.', '', '', ''],
-      ['Solicitud de Cotización de Materiales', '', '', ''],
-      ['', '', '', ''],
-      ['Datos de la Empresa:', '', 'Datos del Proveedor:', ''],
-      ['Dirección: JOAQUIN V. GONZALEZ 855', '', 'Proveedor:', ''],
-      ['Ciudad: GODOY CRUZ', '', 'Contacto:', ''],
-      ['Provincia: MENDOZA', '', 'Teléfono:', ''],
-      ['C.U.I.T.: 30-71899092-7', '', 'E-mail:', ''],
-      ['', '', '', ''],
-      ['MATERIAL', 'CANTIDAD', 'UNIDAD', 'PRECIO UNITARIO'],
-      ...materiales.map(m => [m.nombre, m.cantidad.toFixed(2), m.unidad, '']),
-      ['', '', '', ''],
-      ['TOTAL ITEMS', materiales.length, '', ''],
-    ]);
-
-    ws['!cols'] = [
-      { wch: 40 },
-      { wch: 15 },
-      { wch: 12 },
-      { wch: 18 }
+    const datos = [
+      ['Material', 'Cantidad', 'Unidad'],
+      ...materiales.map(m => [m.nombre, m.cantidad, m.unidad])
     ];
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Solicitud');
-    XLSX.writeFile(wb, `Pedido_Precios_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet(datos);
+    worksheet['!cols'] = [{ wch: 50 }, { wch: 15 }, { wch: 12 }];
+    
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Cómputo');
+    XLSX.writeFile(workbook, `Computo_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const descargarPdf = () => {
-    try {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      let yPos = 15;
+    const doc = new jsPDF();
+    
+    doc.setFontSize(16);
+    doc.text('📊 Cómputo de Materiales', 14, 15);
+    
+    doc.setFontSize(10);
+    doc.text(`Proyecto: Hotel Mendoza`, 14, 25);
+    doc.text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`, 14, 30);
 
-      // Header
-      doc.setFontSize(16);
-      doc.setTextColor(28, 45, 79);
-      doc.text('APEXCORE S.A.S.', pageWidth / 2, yPos, { align: 'center' });
-      yPos += 10;
+    const tableData = materiales.map(m => [
+      m.nombre,
+      m.cantidad.toFixed(2),
+      m.unidad
+    ]);
 
-      doc.setFontSize(12);
-      doc.text('SOLICITUD DE COTIZACIÓN DE MATERIALES', pageWidth / 2, yPos, { align: 'center' });
-      yPos += 15;
+    autoTable(doc, {
+      head: [['Material', 'Cantidad', 'Unidad']],
+      body: tableData,
+      startY: 40,
+      margin: { left: 14, right: 14 },
+      styles: { fontSize: 10, cellPadding: 4 },
+      headStyles: { fillColor: [37, 99, 168], textColor: 255, fontStyle: 'bold' }
+    });
 
-      // Datos empresa
-      doc.setFontSize(9);
-      doc.setTextColor(0, 0, 0);
-      doc.text('Datos de la Empresa:', 15, yPos);
-      yPos += 5;
-      doc.setFontSize(8);
-      doc.text('Dirección: JOAQUIN V. GONZALEZ 855', 15, yPos);
-      yPos += 4;
-      doc.text('Ciudad: GODOY CRUZ | Provincia: MENDOZA', 15, yPos);
-      yPos += 4;
-      doc.text('C.U.I.T.: 30-71899092-7', 15, yPos);
-      yPos += 10;
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(11);
+    doc.text(`Total de ítems: ${materiales.length}`, 14, finalY);
 
-      // Tabla
-      const tableData = materiales.map(m => [
-        m.nombre,
-        m.cantidad.toFixed(2),
-        m.unidad
-      ]);
-
-      doc.autoTable({
-        head: [['Material', 'Cantidad', 'Unidad']],
-        body: tableData,
-        startY: yPos,
-        margin: { left: 15, right: 15 },
-        columnStyles: {
-          0: { cellWidth: 120 },
-          1: { cellWidth: 30, halign: 'center' },
-          2: { cellWidth: 20, halign: 'center' }
-        },
-        headStyles: {
-          fillColor: [28, 45, 79],
-          textColor: [255, 255, 255],
-          fontSize: 9,
-          fontStyle: 'bold'
-        },
-        bodyStyles: {
-          textColor: [0, 0, 0],
-          fontSize: 8
-        },
-        alternateRowStyles: {
-          fillColor: [249, 250, 251]
-        }
-      });
-
-      // Total
-      const finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(9);
-      doc.text(`Total de items: ${materiales.length}`, 15, finalY);
-
-      doc.save(`Pedido_Precios_${new Date().toISOString().slice(0, 10)}.pdf`);
-    } catch (error) {
-      console.error('Error al generar PDF:', error);
-      alert('Error al generar PDF. Intenta descargar Excel en su lugar.');
-    }
+    doc.save(`Computo_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   return (
     <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>🧮 Cómputo de Materiales</h2>
+          <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>📊 Cómputo de Materiales</h2>
           <p style={{ color: '#666' }}>Total de materiales necesarios para el proyecto</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button
-            onClick={calcularComputo}
-            style={{
-              background: '#6366f1',
-              color: 'white',
-              padding: '10px 20px',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '14px'
-            }}
-          >
-            🔄 Recalcular
-          </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <label style={{
+            background: '#8b5cf6',
+            color: 'white',
+            padding: '10px 20px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: cargando ? 'not-allowed' : 'pointer',
+            fontWeight: '600',
+            opacity: cargando ? 0.6 : 1,
+            fontSize: '13px'
+          }}>
+            📥 {cargando ? 'Importando...' : 'Importar Excel'}
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleImportarExcel}
+              disabled={cargando}
+              style={{ display: 'none' }}
+            />
+          </label>
           <button
             onClick={descargarExcel}
             style={{
@@ -198,10 +233,10 @@ export default function Computo({ proyectoId }) {
               borderRadius: '8px',
               cursor: 'pointer',
               fontWeight: '600',
-              fontSize: '14px'
+              fontSize: '13px'
             }}
           >
-            📥 Descargar Excel
+            💾 Descargar Excel
           </button>
           <button
             onClick={descargarPdf}
@@ -213,7 +248,7 @@ export default function Computo({ proyectoId }) {
               borderRadius: '8px',
               cursor: 'pointer',
               fontWeight: '600',
-              fontSize: '14px'
+              fontSize: '13px'
             }}
           >
             📄 Descargar PDF
@@ -223,49 +258,66 @@ export default function Computo({ proyectoId }) {
 
       {materiales.length === 0 ? (
         <p style={{ color: '#999', textAlign: 'center', padding: '40px' }}>
-          Define zonas, bocas y recetas para ver el cómputo
+          Sin materiales para mostrar
         </p>
       ) : (
         <>
           <div style={{ overflowX: 'auto', marginBottom: '24px' }}>
-            <table style={{
-              width: '100%',
-              borderCollapse: 'collapse'
-            }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
                   <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#1c2d4f' }}>Material</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f' }}>Cantidad</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f' }}>Unidad</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f', width: '120px' }}>Cantidad</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f', width: '100px' }}>Unidad</th>
                 </tr>
               </thead>
               <tbody>
                 {materiales.map((material, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
                     <td style={{ padding: '12px', color: '#1c2d4f', fontWeight: '500' }}>{material.nombre}</td>
-                    <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>
-                      {material.cantidad.toFixed(2)}
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={material.cantidad || ''}
+                        onChange={(e) => handleActualizarCantidad(idx, e.target.value)}
+                        style={{
+                          width: '100px',
+                          padding: '6px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          textAlign: 'center',
+                          fontSize: '12px'
+                        }}
+                      />
                     </td>
-                    <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>
-                      {material.unidad}
-                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>{material.unidad}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <div style={{
-            background: 'linear-gradient(135deg, #1c2d4f 0%, #2563a8 100%)',
-            color: 'white',
-            padding: '20px 24px',
-            borderRadius: '10px',
-            textAlign: 'right'
-          }}>
-            <p style={{ margin: '0 0 8px 0', opacity: 0.9 }}>TOTAL DE MATERIALES</p>
-            <h3 style={{ margin: 0, fontSize: '24px', fontWeight: '700' }}>
-              {total.toFixed(2)} unidades
-            </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+              <p style={{ margin: '0 0 8px 0', color: '#999', fontSize: '12px', fontWeight: '600' }}>TOTAL DE ÍTEMS</p>
+              <h3 style={{ margin: 0, color: '#1c2d4f', fontSize: '20px' }}>{materiales.length}</h3>
+            </div>
+            <button
+              onClick={handleLimpiarImport}
+              style={{
+                background: '#fee2e2',
+                color: '#991b1b',
+                padding: '12px',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '13px'
+              }}
+            >
+              🗑️ Limpiar Datos Importados
+            </button>
           </div>
         </>
       )}
