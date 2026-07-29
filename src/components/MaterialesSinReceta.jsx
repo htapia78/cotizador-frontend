@@ -91,11 +91,14 @@ const CATALOGO = [
   { categoria: 'Tableros', material: 'Bornerta Portafusible', unidad: 'un' },
 ];
 
+const UNIDADES = ['un', 'mts', 'kg', 'lt'];
+
 export default function MaterialesSinReceta({ proyectoId }) {
   const [materiales, setMateriales] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [nuevaCantidad, setNuevaCantidad] = useState('');
+  const [nuevaUnidad, setNuevaUnidad] = useState('un');
   const storageKey = `materiales-sin-receta-${proyectoId}`;
 
   useEffect(() => {
@@ -117,6 +120,7 @@ export default function MaterialesSinReceta({ proyectoId }) {
 
   const handleSeleccionar = (materialObj) => {
     setBusqueda(materialObj.material);
+    setNuevaUnidad(materialObj.unidad); // Usar unidad del catálogo
     setMostrarSugerencias(false);
   };
 
@@ -128,7 +132,7 @@ export default function MaterialesSinReceta({ proyectoId }) {
       id: Date.now(),
       nombre: busqueda,
       cantidad: parseFloat(nuevaCantidad),
-      unidad: 'un'
+      unidad: nuevaUnidad
     };
 
     const materialesActualizados = [...materiales, nuevoMatObj];
@@ -136,6 +140,7 @@ export default function MaterialesSinReceta({ proyectoId }) {
     localStorage.setItem(storageKey, JSON.stringify(materialesActualizados));
     setBusqueda('');
     setNuevaCantidad('');
+    setNuevaUnidad('un');
     setMostrarSugerencias(false);
   };
 
@@ -215,7 +220,7 @@ export default function MaterialesSinReceta({ proyectoId }) {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: '8px' }}>
             <input
               type="number"
               step="0.1"
@@ -229,6 +234,20 @@ export default function MaterialesSinReceta({ proyectoId }) {
                 fontSize: '13px'
               }}
             />
+            <select
+              value={nuevaUnidad}
+              onChange={(e) => setNuevaUnidad(e.target.value)}
+              style={{
+                padding: '10px',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '13px'
+              }}
+            >
+              {UNIDADES.map(u => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
             <button
               type="submit"
               style={{
