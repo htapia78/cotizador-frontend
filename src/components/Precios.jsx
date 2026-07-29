@@ -163,128 +163,73 @@ export default function Precios({ proyectoId }) {
         const pdfData = e.target.result;
         const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
-        let materialesDelPdf = [];
-        let intentoTexto = true;
+        let materialesDelPdf = {};
 
-        // INTENTO 1: Parsing de texto
-        try {
-          let textoCompleto = '';
-          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-            const page = await pdf.getPage(pageNum);
-            const textContent = await page.getTextContent();
-            const texto = textContent.items.map(item => item.str).join(' ');
-            textoCompleto += ' ' + texto;
-          }
-
-          // Buscar códigos de 5 dígitos
-          const lineas = textoCompleto.split(/\s{2,}|\n+/);
-          lineas.forEach(linea => {
-            linea = linea.trim();
-            if (linea.length < 10) return;
-
-            const codigoMatch = linea.match(/(\d{5})/);
-            if (!codigoMatch) return;
-
-            const codigo = codigoMatch[1];
-            const preciosMatches = linea.match(/\$[\d.]+/g);
-            if (!preciosMatches || preciosMatches.length === 0) return;
-
-            const precioStr = preciosMatches[0].replace('$', '').replace(/\./g, '');
-            const precioSinIva = parseFloat(precioStr);
-            if (precioSinIva === 0 || isNaN(precioSinIva)) return;
-
-            const afterCode = linea.substring(linea.indexOf(codigo) + 5).trim();
-            const beforePrice = afterCode.substring(0, afterCode.indexOf('$')).trim();
-            let descripcion = beforePrice.replace(/\s+\d+\s*$/, '').trim().toUpperCase();
-
-            if (descripcion.length > 3 && descripcion.length < 200) {
-              materialesDelPdf.push({ codigo, descripcion, precio: precioSinIva });
-            }
+        // Extraer texto página por página
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          
+          // Reconstruir líneas ordenadas
+          const itemsPerY = {};
+          textContent.items.forEach(item => {
+            const y = Math.round(item.y / 2) * 2; // Agrupar por Y con tolerancia
+            if (!itemsPerY[y]) itemsPerY[y] = [];
+            itemsPerY[y].push({ x: item.x, str: item.str });
           });
 
-          if (materialesDelPdf.length > 5) {
-            intentoTexto = false; // Éxito
-          }
-        } catch (err) {
-          console.log('Parsing de texto falló, intentando OCR...');
-        }
+          // Procesar líneas de arriba a abajo
+          Object.keys(itemsPerY)
+            .sort((a, b) => b - a)
+            .forEach(y => {
+              const items = itemsPerY[y].sort((a, b) => a.x - b.x);
+              const lineaCompleta = items.map(i => i.str).join(' ');
 
-        // INTENTO 2: OCR si el texto no funcionó
-        if (intentoTexto && materialesDelPdf.length < 5) {
-          console.log('Iniciando OCR...');
-          
-          // Importar Tesseract dinámicamente
-          
-          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-            const page = await pdf.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 2 });
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
+              // Patrón específico: código (5 dígitos) + desc + cantidad + % + $ + precio
+              const regex = /^(\d{5})\s+(.+?)\s+(\d+)\s+\d+%\s+\$?([\d.]+)\s+\$/;
+              const match = lineaCompleta.match(regex);
 
-            await page.render({ canvasContext: context, viewport }).promise;
+              if (match) {
+                const codigo = match[1];
+                const descripcion = match[2].trim().toUpperCase();
+                const precioStr = match[4].replace(/\./g, ''); // Remover puntos de miles
+                const precio = parseFloat(precioStr);
 
-            // OCR
-            const { data: { text } } = await Tesseract.recognize(canvas);
-
-            // Parsear resultado OCR
-            const lineas = text.split('\n');
-            lineas.forEach(linea => {
-              linea = linea.trim();
-              if (linea.length < 10) return;
-
-              const codigoMatch = linea.match(/(\d{5})/);
-              if (!codigoMatch) return;
-
-              const codigo = codigoMatch[1];
-              const preciosMatches = linea.match(/\$?[\d.]+/g);
-              if (!preciosMatches || preciosMatches.length < 2) return;
-
-              // Tomar el penúltimo o último número como precio
-              const precioStr = preciosMatches[preciosMatches.length - 2] || preciosMatches[preciosMatches.length - 1];
-              const precioSinIva = parseFloat(precioStr.toString().replace(/[^\d.]/g, ''));
-
-              if (precioSinIva === 0 || isNaN(precioSinIva)) return;
-
-              const afterCode = linea.substring(linea.indexOf(codigo) + 5).trim();
-              let descripcion = afterCode.split(/\d+/)[0].trim().toUpperCase();
-
-              if (descripcion.length > 3 && descripcion.length < 200) {
-                // No duplicar
-                if (!materialesDelPdf.find(m => m.codigo === codigo)) {
-                  materialesDelPdf.push({ codigo, descripcion, precio: precioSinIva });
+                if (precio > 0 && descripcion.length > 5) {
+                  materialesDelPdf[descripcion] = precio;
+                  console.log(`✓ ${codigo} | ${descripcion.substring(0, 50)} | $${precio}`);
                 }
               }
             });
-          }
         }
 
-        console.log(`✅ Total extraídos: ${materialesDelPdf.length} materiales`);
+        console.log(`✅ Extraídos ${Object.keys(materialesDelPdf).length} precios del PDF`);
 
-        // Matching
+        // Matching: buscar coincidencias
         const preciosActualizados = { ...precios };
         let actualizados = 0;
 
         materiales.forEach(mat => {
           const nombreUpper = mat.nombre.toUpperCase();
 
-          let encontrado = materialesDelPdf.find(p => 
-            p.descripcion.includes(nombreUpper) || nombreUpper.includes(p.descripcion)
-          );
-
-          if (!encontrado) {
-            encontrado = materialesDelPdf.find(p => {
-              const minLen = Math.min(p.descripcion.length, nombreUpper.length);
-              return p.descripcion.substring(0, minLen) === nombreUpper.substring(0, minLen);
-            });
+          // Búsqueda exacta
+          if (materialesDelPdf[nombreUpper]) {
+            preciosActualizados[mat.nombre] = materialesDelPdf[nombreUpper];
+            actualizados++;
+            return;
           }
 
-          if (encontrado) {
-            preciosActualizados[mat.nombre] = encontrado.precio;
-            actualizados++;
+          // Búsqueda por contención
+          for (const [desc, precio] of Object.entries(materialesDelPdf)) {
+            if (nombreUpper.includes(desc) || desc.includes(nombreUpper)) {
+              preciosActualizados[mat.nombre] = precio;
+              actualizados++;
+              break;
+            }
           }
         });
+
+        console.log(`✅ Actualizados: ${actualizados}/${materiales.length}`);
 
         setPrecios(preciosActualizados);
         localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
