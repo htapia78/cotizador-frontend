@@ -162,78 +162,117 @@ export default function Precios({ proyectoId }) {
         const pdfData = e.target.result;
         const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
-        let textoCompleto = '';
+        let materialesDelPdf = [];
+        let intentoTexto = true;
 
-        // Extraer TODO el texto
-        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-          const page = await pdf.getPage(pageNum);
-          const textContent = await page.getTextContent();
-          const texto = textContent.items.map(item => item.str).join(' ');
-          textoCompleto += ' ' + texto;
+        // INTENTO 1: Parsing de texto
+        try {
+          let textoCompleto = '';
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            const texto = textContent.items.map(item => item.str).join(' ');
+            textoCompleto += ' ' + texto;
+          }
+
+          // Buscar códigos de 5 dígitos
+          const lineas = textoCompleto.split(/\s{2,}|\n+/);
+          lineas.forEach(linea => {
+            linea = linea.trim();
+            if (linea.length < 10) return;
+
+            const codigoMatch = linea.match(/(\d{5})/);
+            if (!codigoMatch) return;
+
+            const codigo = codigoMatch[1];
+            const preciosMatches = linea.match(/\$[\d.]+/g);
+            if (!preciosMatches || preciosMatches.length === 0) return;
+
+            const precioStr = preciosMatches[0].replace('$', '').replace(/\./g, '');
+            const precioSinIva = parseFloat(precioStr);
+            if (precioSinIva === 0 || isNaN(precioSinIva)) return;
+
+            const afterCode = linea.substring(linea.indexOf(codigo) + 5).trim();
+            const beforePrice = afterCode.substring(0, afterCode.indexOf('$')).trim();
+            let descripcion = beforePrice.replace(/\s+\d+\s*$/, '').trim().toUpperCase();
+
+            if (descripcion.length > 3 && descripcion.length < 200) {
+              materialesDelPdf.push({ codigo, descripcion, precio: precioSinIva });
+            }
+          });
+
+          if (materialesDelPdf.length > 5) {
+            intentoTexto = false; // Éxito
+          }
+        } catch (err) {
+          console.log('Parsing de texto falló, intentando OCR...');
         }
 
-        console.log('Texto extraído (primeros 300 chars):', textoCompleto.substring(0, 300));
-
-        // Buscar TODOS los códigos de 5 dígitos seguidos de descripción y precio
-        // Patrón: XXXXX DESCRIPCIÓN ... $XXXXX ... $XXXXX
-        // Dividir por líneas lógicas (múltiples espacios o saltos)
-        const lineas = textoCompleto.split(/\s{2,}|\n+/);
-
-        let materialesDelPdf = [];
-
-        lineas.forEach(linea => {
-          linea = linea.trim();
-          if (linea.length < 10) return;
-
-          // Buscar código de 5 dígitos
-          const codigoMatch = linea.match(/(\d{5})/);
-          if (!codigoMatch) return;
-
-          const codigo = codigoMatch[1];
-
-          // Buscar todos los precios en la línea
-          const preciosMatches = linea.match(/\$[\d.]+/g);
-          if (!preciosMatches || preciosMatches.length === 0) return;
-
-          // Tomar el precio sin IVA (generalmente el primero después de cantidad %)
-          // Formato típico: $XXXXX ... $XXXXX (el primero es sin IVA)
-          const precioStr = preciosMatches[0].replace('$', '').replace(/\./g, '');
-          const precioSinIva = parseFloat(precioStr);
-
-          if (precioSinIva === 0 || isNaN(precioSinIva)) return;
-
-          // Extraer descripción: entre código y primer $
-          const afterCode = linea.substring(linea.indexOf(codigo) + 5).trim();
-          const beforePrice = afterCode.substring(0, afterCode.indexOf('$')).trim();
+        // INTENTO 2: OCR si el texto no funcionó
+        if (intentoTexto && materialesDelPdf.length < 5) {
+          console.log('Iniciando OCR...');
           
-          // Limpiar descripción: remover cantidad (números al final antes del precio)
-          let descripcion = beforePrice.replace(/\s+\d+\s*$/, '').trim().toUpperCase();
+          // Importar Tesseract dinámicamente
+          const Tesseract = (await import('tesseract.js')).default;
 
-          if (descripcion.length > 3 && descripcion.length < 200) {
-            materialesDelPdf.push({
-              codigo,
-              descripcion,
-              precio: precioSinIva
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 2 });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            await page.render({ canvasContext: context, viewport }).promise;
+
+            // OCR
+            const { data: { text } } = await Tesseract.recognize(canvas);
+
+            // Parsear resultado OCR
+            const lineas = text.split('\n');
+            lineas.forEach(linea => {
+              linea = linea.trim();
+              if (linea.length < 10) return;
+
+              const codigoMatch = linea.match(/(\d{5})/);
+              if (!codigoMatch) return;
+
+              const codigo = codigoMatch[1];
+              const preciosMatches = linea.match(/\$?[\d.]+/g);
+              if (!preciosMatches || preciosMatches.length < 2) return;
+
+              // Tomar el penúltimo o último número como precio
+              const precioStr = preciosMatches[preciosMatches.length - 2] || preciosMatches[preciosMatches.length - 1];
+              const precioSinIva = parseFloat(precioStr.toString().replace(/[^\d.]/g, ''));
+
+              if (precioSinIva === 0 || isNaN(precioSinIva)) return;
+
+              const afterCode = linea.substring(linea.indexOf(codigo) + 5).trim();
+              let descripcion = afterCode.split(/\d+/)[0].trim().toUpperCase();
+
+              if (descripcion.length > 3 && descripcion.length < 200) {
+                // No duplicar
+                if (!materialesDelPdf.find(m => m.codigo === codigo)) {
+                  materialesDelPdf.push({ codigo, descripcion, precio: precioSinIva });
+                }
+              }
             });
-            console.log(`✓ ${codigo} | ${descripcion.substring(0, 60)} | $${precioSinIva}`);
           }
-        });
+        }
 
-        console.log(`\n✅ Total extraídos: ${materialesDelPdf.length} materiales`);
+        console.log(`✅ Total extraídos: ${materialesDelPdf.length} materiales`);
 
-        // Matching: buscar precios para cada material
+        // Matching
         const preciosActualizados = { ...precios };
         let actualizados = 0;
 
         materiales.forEach(mat => {
           const nombreUpper = mat.nombre.toUpperCase();
 
-          // Búsqueda 1: Exacta
           let encontrado = materialesDelPdf.find(p => 
             p.descripcion.includes(nombreUpper) || nombreUpper.includes(p.descripcion)
           );
 
-          // Búsqueda 2: Por similitud de inicio
           if (!encontrado) {
             encontrado = materialesDelPdf.find(p => {
               const minLen = Math.min(p.descripcion.length, nombreUpper.length);
@@ -247,13 +286,11 @@ export default function Precios({ proyectoId }) {
           }
         });
 
-        console.log(`✅ Actualizados: ${actualizados}/${materiales.length}`);
-
         setPrecios(preciosActualizados);
         localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
         calcularTotales(materiales, preciosActualizados);
 
-        alert(`✅ Se actualizaron ${actualizados} de ${materiales.length} precios.`);
+        alert(`✅ PDF procesado.\nSe actualizaron ${actualizados} de ${materiales.length} precios.`);
       };
       fileReader.readAsArrayBuffer(file);
     } catch (error) {
