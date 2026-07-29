@@ -162,71 +162,92 @@ export default function Precios({ proyectoId }) {
         const pdfData = e.target.result;
         const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
-        let materialesDelPdf = {};
+        let materialesDelPdf = [];
 
         // Extraer texto de todas las páginas
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
-          const texto = textContent.items.map(item => item.str).join('');
-
-          // Búscar el patrón de materiales con precios
-          // Patrón: código (números) + descripción + cantidad + bonificación + precio sin iva + precio total
-          const regex = /(\d+)\s+([A-Z\s\/\-\(\)0-9]+?)\s+(\d+)\s+(\d+)%\s+\$?([\d.]+)\s+\$/gi;
           
-          let match;
-          while ((match = regex.exec(texto)) !== null) {
-            const codigo = match[1];
-            const descripcion = match[2].trim();
-            const cantidad = match[3];
-            const bonif = match[4];
-            const precioSinIva = parseFloat(match[5].replace(/\./g, ''));
+          // Agrupar items por línea (items con Y similar están en la misma línea)
+          const lineas = {};
+          textContent.items.forEach(item => {
+            const y = Math.round(item.y);
+            if (!lineas[y]) lineas[y] = [];
+            lineas[y].push(item.str);
+          });
+
+          // Procesar cada línea
+          Object.keys(lineas).sort((a, b) => b - a).forEach(y => {
+            const lineaTexto = lineas[y].join('').trim();
             
-            // Usar la descripción como clave
-            if (descripcion && !materialesDelPdf[descripcion]) {
-              materialesDelPdf[descripcion] = precioSinIva;
-              console.log(`✓ ${descripcion}: $${precioSinIva}`);
+            // Patrón: 5 dígitos + descripción + números (cantidad) + números (%) + $ + número (precio)
+            // Mejorado para captar mejor
+            const match = lineaTexto.match(/^(\d{5})\s+(.+?)\s+(\d+)\s+(\d+)%\s+\$?([\d.]+)\s+\$/);
+            
+            if (match) {
+              const codigo = match[1];
+              const descripcion = match[2].trim().toUpperCase();
+              const cantidad = match[3];
+              const bonif = match[4];
+              const precioStr = match[5];
+              
+              // Limpiar precio (puede tener puntos como miles)
+              const precioSinIva = parseFloat(precioStr.replace(/\./g, ''));
+              
+              materialesDelPdf.push({
+                codigo,
+                descripcion,
+                precio: precioSinIva
+              });
+              
+              console.log(`✓ ${codigo} | ${descripcion} | $${precioSinIva}`);
             }
-          }
+          });
         }
 
-        console.log(`Total encontrados en PDF: ${Object.keys(materialesDelPdf).length}`);
+        console.log(`Total extraídos: ${materialesDelPdf.length} materiales`);
+        console.log('Materiales del PDF:', materialesDelPdf);
 
-        // Matching: asociar materiales del PDF con materiales de la cotización
+        // Matching: asociar con materiales de la cotización
         const preciosActualizados = { ...precios };
         let actualizados = 0;
 
         materiales.forEach(mat => {
           const nombreUpper = mat.nombre.toUpperCase();
           
-          // Búsqueda exacta primero
-          for (const [descPdf, precioPdf] of Object.entries(materialesDelPdf)) {
-            if (descPdf.toUpperCase() === nombreUpper) {
-              preciosActualizados[mat.nombre] = precioPdf;
-              actualizados++;
-              console.log(`✓ Matched: ${mat.nombre}`);
-              break;
-            }
+          // Búsqueda exacta
+          const exacto = materialesDelPdf.find(p => 
+            p.descripcion === nombreUpper
+          );
+          
+          if (exacto) {
+            preciosActualizados[mat.nombre] = exacto.precio;
+            actualizados++;
+            console.log(`✓ EXACTO: ${mat.nombre}`);
+            return;
           }
 
-          // Si no encuentra, intenta búsqueda parcial
-          if (!preciosActualizados[mat.nombre]) {
-            for (const [descPdf, precioPdf] of Object.entries(materialesDelPdf)) {
-              if (nombreUpper.includes(descPdf.toUpperCase()) || descPdf.toUpperCase().includes(nombreUpper)) {
-                preciosActualizados[mat.nombre] = precioPdf;
-                actualizados++;
-                console.log(`~ Partial match: ${mat.nombre} ← ${descPdf}`);
-                break;
-              }
-            }
+          // Búsqueda por código (si el material tiene código en el nombre o lo conocemos)
+          const porCodigo = materialesDelPdf.find(p => 
+            nombreUpper.includes(p.codigo) || p.descripcion.includes(nombreUpper)
+          );
+          
+          if (porCodigo) {
+            preciosActualizados[mat.nombre] = porCodigo.precio;
+            actualizados++;
+            console.log(`~ PARCIAL: ${mat.nombre} ← ${porCodigo.descripcion}`);
+            return;
           }
         });
+
+        console.log(`Actualizados: ${actualizados}/${materiales.length}`);
 
         setPrecios(preciosActualizados);
         localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
         calcularTotales(materiales, preciosActualizados);
 
-        alert(`✅ Presupuesto cargado. Se actualizaron ${actualizados} precios de ${materiales.length} materiales.`);
+        alert(`✅ Presupuesto cargado. Se actualizaron ${actualizados} precios.`);
       };
       fileReader.readAsArrayBuffer(file);
     } catch (error) {
