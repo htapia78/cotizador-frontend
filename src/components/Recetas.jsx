@@ -97,6 +97,89 @@ const TIPOS_BOCA = [
   { id: 8, nombre: 'Acometida TV' },
 ];
 
+// Función de similitud (Levenshtein)
+const calcularSimilitud = (s1, s2) => {
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / parseFloat(longer.length);
+};
+
+const levenshteinDistance = (s1, s2) => {
+  const costs = [];
+  for (let i = 0; i <= s1.length; i++) {
+    let lastValue = i;
+    for (let j = 0; j <= s2.length; j++) {
+      if (i === 0) {
+        costs[j] = j;
+      } else if (j > 0) {
+        let newValue = costs[j - 1];
+        if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+          newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+        }
+        costs[j - 1] = lastValue;
+        lastValue = newValue;
+      }
+    }
+    if (i > 0) costs[s2.length] = lastValue;
+  }
+  return costs[s2.length];
+};
+
+// Función de migración
+const migrarRecetas = (materialesViejos) => {
+  if (!materialesViejos || Object.keys(materialesViejos).length === 0) {
+    return materialesViejos;
+  }
+
+  const materialesNuevos = {};
+
+  Object.entries(materialesViejos).forEach(([tipoId, listaMateriales]) => {
+    materialesNuevos[tipoId] = listaMateriales.map(material => {
+      // Si ya está en el catálogo exactamente, no migra
+      const enCatalogo = CATALOGO.find(c => c.nombre === material.nombre);
+      if (enCatalogo) {
+        return material;
+      }
+
+      // Buscar el nombre más similar en el catálogo
+      let mejorCoincidencia = null;
+      let mejorSimilitud = 0.6; // Umbral mínimo de similitud
+
+      CATALOGO.forEach(catalogo => {
+        const similitud = calcularSimilitud(
+          material.nombre.toUpperCase(),
+          catalogo.nombre.toUpperCase()
+        );
+
+        if (similitud > mejorSimilitud) {
+          mejorSimilitud = similitud;
+          mejorCoincidencia = catalogo;
+        }
+      });
+
+      // Si encontró una coincidencia similar, migrar
+      if (mejorCoincidencia) {
+        console.log(`✓ Migrado: "${material.nombre}" → "${mejorCoincidencia.nombre}"`);
+        return {
+          ...material,
+          nombre: mejorCoincidencia.nombre,
+          unidad: material.unidad || mejorCoincidencia.unidad
+        };
+      }
+
+      // Si no encuentra coincidencia, mantener como está
+      console.log(`⚠ No se pudo migrar: "${material.nombre}"`);
+      return material;
+    });
+  });
+
+  return materialesNuevos;
+};
+
 export default function Recetas({ proyectoId }) {
   const [tipoSeleccionado, setTipoSeleccionado] = useState(1);
   const [materiales, setMateriales] = useState({});
@@ -110,7 +193,10 @@ export default function Recetas({ proyectoId }) {
     const datos = localStorage.getItem(storageKey);
     if (datos) {
       try {
-        setMateriales(JSON.parse(datos));
+        const parsed = JSON.parse(datos);
+        const migrados = migrarRecetas(parsed);
+        setMateriales(migrados);
+        localStorage.setItem(storageKey, JSON.stringify(migrados));
       } catch (e) {
         console.error('Error al cargar recetas:', e);
         setMateriales({});
