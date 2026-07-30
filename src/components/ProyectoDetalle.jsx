@@ -3,126 +3,102 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Zonas from './Zonas';
 import Bocas from './Bocas';
 import Recetas from './Recetas';
-import Computo from './Computo';
 import MaterialesSinReceta from './MaterialesSinReceta';
+import Computo from './Computo';
 import Precios from './Precios';
+import ManoDeObra from './ManoDeObra';
+import PresupuestoVenta from './PresupuestoVenta';
 
 export default function ProyectoDetalle() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [proyecto, setProyecto] = useState(null);
   const [tab, setTab] = useState('zonas');
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   useEffect(() => {
-    cargarProyecto();
+    const proyectos = JSON.parse(localStorage.getItem('proyectos') || '[]');
+    const p = proyectos.find(pry => pry.id === parseInt(id));
+    if (p) setProyecto(p);
   }, [id]);
 
-  const cargarProyecto = async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      const res = await fetch(`${apiUrl}/api/proyectos/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      const proy = data.find(p => p.id === parseInt(id));
-      setProyecto(proy);
-    } catch (err) {
-      console.error('Error:', err);
-    }
-  };
-
-  if (!proyecto) return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      color: '#999'
-    }}>
-      Cargando...
-    </div>
-  );
-
-  const tabsConfig = [
-    { id: 'zonas', label: 'Zonas', icon: '📍' },
-    { id: 'bocas', label: 'Conteo de Bocas', icon: '🔌' },
-    { id: 'recetas', label: 'Recetas', icon: '📋' },
-    { id: 'materiales', label: 'Materiales sin Receta', icon: '📦' },
-    { id: 'computo', label: 'Cómputo', icon: '🧮' },
-    { id: 'precios', label: 'Precios', icon: '💲' }
-  ];
+  if (!proyecto) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando...</div>;
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)' }}>
-      <header style={{
-        background: 'linear-gradient(135deg, #1c2d4f 0%, #2563a8 100%)',
-        color: 'white',
-        padding: '32px 24px',
-        boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
-        borderBottom: '3px solid #c8a84b'
-      }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '20px' }}>
+    <div style={{ padding: '24px', background: '#f3f4f6', minHeight: '100vh' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        {/* HEADER */}
+        <div style={{ marginBottom: '24px' }}>
           <button
             onClick={() => navigate('/dashboard')}
             style={{
-              background: 'rgba(255,255,255,0.15)',
-              color: 'white',
-              border: '1px solid rgba(255,255,255,0.3)',
-              padding: '10px 16px',
+              padding: '8px 16px',
+              background: '#e5e7eb',
+              color: '#1c2d4f',
+              border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
-              fontWeight: 'bold',
-              transition: 'all 0.2s',
-              fontSize: '14px'
+              fontSize: '13px',
+              fontWeight: '600',
+              marginBottom: '12px'
             }}
           >
             ← Volver
           </button>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '28px', fontWeight: '700' }}>⚡ {proyecto.nombre}</h1>
-            <p style={{ margin: '8px 0 0 0', opacity: 0.9, fontSize: '14px' }}>Cliente: {proyecto.cliente}</p>
-          </div>
+          <h1 style={{ color: '#1c2d4f', margin: '0 0 8px 0' }}>{proyecto.nombre}</h1>
+          <p style={{ color: '#666', margin: 0 }}>Hotel Mendoza - Godoy Cruz, Mendoza</p>
         </div>
-      </header>
 
-      <nav style={{
-        background: 'white',
-        borderBottom: '2px solid #e5e7eb',
-        display: 'flex',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        overflowX: 'auto'
-      }}>
-        {tabsConfig.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            style={{
-              flex: '0 0 auto',
-              padding: '18px 24px',
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              fontWeight: tab === t.id ? '600' : '500',
-              color: tab === t.id ? '#c8a84b' : '#6b7280',
-              borderBottom: tab === t.id ? '3px solid #c8a84b' : '3px solid transparent',
-              transition: 'all 0.2s',
-              fontSize: '14px',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </nav>
+        {/* PESTAÑAS BOTONES */}
+        <nav style={{
+          display: 'flex',
+          gap: '8px',
+          marginBottom: '24px',
+          borderBottom: '2px solid #e5e7eb',
+          overflowX: 'auto',
+          paddingBottom: '12px'
+        }}>
+          {[
+            { id: 'zonas', label: '🗺️ Zonas' },
+            { id: 'bocas', label: '💡 Bocas' },
+            { id: 'recetas', label: '📋 Recetas' },
+            { id: 'materiales', label: '📦 Materiales' },
+            { id: 'computo', label: '📊 Cómputo' },
+            { id: 'precios', label: '💲 Precios' },
+            { id: 'manoDeObra', label: '👷 Mano de Obra' },
+            { id: 'presupuestoVenta', label: '📄 Presupuesto' }
+          ].map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              style={{
+                padding: '10px 16px',
+                border: 'none',
+                background: tab === t.id ? '#2563a8' : 'white',
+                color: tab === t.id ? 'white' : '#1c2d4f',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: tab === t.id ? '600' : '500',
+                fontSize: '13px',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.2s'
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
-        {tab === 'zonas' && <Zonas proyectoId={id} />}
-        {tab === 'bocas' && <Bocas proyectoId={id} />}
-        {tab === 'recetas' && <Recetas proyectoId={id} />}
-        {tab === 'materiales' && <MaterialesSinReceta proyectoId={id} />}
-        {tab === 'computo' && <Computo proyectoId={id} />}
-        {tab === 'precios' && <Precios proyectoId={id} />}
+        {/* CONTENIDO PESTAÑAS */}
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
+          {tab === 'zonas' && <Zonas proyectoId={id} />}
+          {tab === 'bocas' && <Bocas proyectoId={id} />}
+          {tab === 'recetas' && <Recetas proyectoId={id} />}
+          {tab === 'materiales' && <MaterialesSinReceta proyectoId={id} />}
+          {tab === 'computo' && <Computo proyectoId={id} />}
+          {tab === 'precios' && <Precios proyectoId={id} />}
+          {tab === 'manoDeObra' && <ManoDeObra proyectoId={id} />}
+          {tab === 'presupuestoVenta' && <PresupuestoVenta proyectoId={id} />}
+        </div>
       </div>
     </div>
   );
