@@ -3,8 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import ProyectoDetalle from './components/ProyectoDetalle';
-import ManoDeObra from './components/ManoDeObra';
-import PresupuestoVenta from './components/PresupuestoVenta';
 
 function PrivateRoute({ children }) {
   const [autenticado, setAutenticado] = useState(null);
