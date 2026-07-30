@@ -6,8 +6,6 @@ import Recetas from './Recetas';
 import MaterialesSinReceta from './MaterialesSinReceta';
 import Computo from './Computo';
 import Precios from './Precios';
-import ManoDeObra from './ManoDeObra';
-import PresupuestoVenta from './PresupuestoVenta';
 
 export default function ProyectoDetalle() {
   const { id } = useParams();
@@ -33,9 +31,7 @@ export default function ProyectoDetalle() {
     { id: 'recetas', label: '📋 Recetas' },
     { id: 'materiales', label: '📦 Materiales' },
     { id: 'computo', label: '📊 Cómputo' },
-    { id: 'precios', label: '💲 Precios' },
-    { id: 'manoDeObra', label: '👷 Mano de Obra' },
-    { id: 'presupuestoVenta', label: '📄 Presupuesto' }
+    { id: 'precios', label: '💲 Precios' },   
   ];
 
   return (
@@ -98,9 +94,7 @@ export default function ProyectoDetalle() {
           {tab === 'recetas' && <Recetas proyectoId={id} />}
           {tab === 'materiales' && <MaterialesSinReceta proyectoId={id} />}
           {tab === 'computo' && <Computo proyectoId={id} />}
-          {tab === 'precios' && <Precios proyectoId={id} />}
-          {tab === 'manoDeObra' && <ManoDeObra proyectoId={id} />}
-          {tab === 'presupuestoVenta' && <PresupuestoVenta proyectoId={id} />}
+          {tab === 'precios' && <Precios proyectoId={id} />}       
         </div>
       </div>
     </div>
