@@ -1,405 +1,131 @@
-import React, { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
-import * as pdfjsLib from 'pdfjs-dist';
+import React, { useState } from 'react';
+import { K, get, set } from '../lib/store';
+import { lineaMO } from '../lib/calc';
+import { money } from '../lib/format';
+import { Head, Empty, Kpi } from '../ui';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+/* Escala UOCRA CCT 76/75 — Zona A (incluye Mendoza), julio 2026.
+   Valores de referencia: actualizalos con cada paritaria. */
+const UOCRA = [
+  { categoria:'Oficial especializado', valorHora:6800, noRemunerativo:72900 },
+  { categoria:'Oficial',               valorHora:5817, noRemunerativo:67100 },
+  { categoria:'Medio oficial',         valorHora:5375, noRemunerativo:62000 },
+  { categoria:'Ayudante',              valorHora:4948, noRemunerativo:57900 },
+];
+const NUEVA = {
+  categoria:'', valorHora:0, adicional:0, horasDia:8, diasMes:22, meses:1,
+  dotacion:1, noRemunerativo:0, pctCargas:0,
+};
 
-export default function Precios({ proyectoId }) {
-  const [materiales, setMateriales] = useState([]);
-  const [precios, setPrecios] = useState({});
-  const [totalSinIva, setTotalSinIva] = useState(0);
-  const [totalIva, setTotalIva] = useState(0);
-  const [totalConIva, setTotalConIva] = useState(0);
-  const [cargando, setCargando] = useState(false);
+export default function ManoDeObra({ proyectoId, onCambio }) {
+  const key = K.mo(proyectoId);
+  const [lineas, setLineas] = useState(() => get(key, []));
+  const [cargasGlobal, setCargasGlobal] = useState(() => get(key, [])[0]?.pctCargas ?? 0);
 
-  const storageKeyPrecios = `precios-${proyectoId}`;
+  const guardar = l => { setLineas(l); set(key, l); onCambio?.(); };
 
-  useEffect(() => {
-    cargarDatos();
-  }, [proyectoId]);
+  const agregar = (preset) => guardar([...lineas, {
+    ...NUEVA, id: Date.now(), ...preset, pctCargas: cargasGlobal,
+    adicional: preset ? 0 : 0,
+  }]);
 
-  const cargarDatos = () => {
-    const bocasKey = `bocas-${proyectoId}`;
-    const recetasKey = `recetas-${proyectoId}`;
-    const sinRecetaKey = `materiales-sin-receta-${proyectoId}`;
+  const editar = (id, campo, v) => guardar(lineas.map(l => l.id === id
+    ? { ...l, [campo]: campo === 'categoria' ? v : (parseFloat(String(v).replace(',', '.')) || 0) } : l));
 
-    const conteos = JSON.parse(localStorage.getItem(bocasKey) || '{}');
-    const recetas = JSON.parse(localStorage.getItem(recetasKey) || '{}');
-    const sinReceta = JSON.parse(localStorage.getItem(sinRecetaKey) || '[]');
-
-    const materiales_calculados = {};
-
-    Object.entries(conteos).forEach(([key, cantidad]) => {
-      const [zonaId, tipoId] = key.split('-').map(Number);
-      const recetasDeTipo = recetas[tipoId] || recetas[`${tipoId}`] || [];
-      
-      recetasDeTipo.forEach(material => {
-        const materialKey = material.nombre;
-        const cantidadTotal = cantidad * material.cantidad;
-        
-        if (!materiales_calculados[materialKey]) {
-          materiales_calculados[materialKey] = {
-            nombre: material.nombre,
-            cantidad: 0,
-            unidad: material.unidad || 'm'
-          };
-        }
-        materiales_calculados[materialKey].cantidad += cantidadTotal;
-      });
-    });
-
-    sinReceta.forEach(material => {
-      const materialKey = material.nombre;
-      if (!materiales_calculados[materialKey]) {
-        materiales_calculados[materialKey] = {
-          nombre: material.nombre,
-          cantidad: 0,
-          unidad: material.unidad || 'un'
-        };
-      }
-      materiales_calculados[materialKey].cantidad += material.cantidad;
-    });
-
-    const materialesArray = Object.values(materiales_calculados)
-      .filter(m => m.cantidad > 0)
-      .sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-    setMateriales(materialesArray);
-
-    const preciosGuardados = JSON.parse(localStorage.getItem(storageKeyPrecios) || '{}');
-    setPrecios(preciosGuardados);
-    calcularTotales(materialesArray, preciosGuardados);
+  const aplicarCargas = pct => {
+    setCargasGlobal(pct);
+    guardar(lineas.map(l => ({ ...l, pctCargas: pct })));
   };
 
-  const calcularTotales = (mats, precs) => {
-    let totalSin = 0;
-    mats.forEach(mat => {
-      const precio = precs[mat.nombre] || 0;
-      totalSin += mat.cantidad * precio;
-    });
-    
-    const iva = totalSin * 0.21;
-    const totalCon = totalSin + iva;
-    
-    setTotalSinIva(totalSin);
-    setTotalIva(iva);
-    setTotalConIva(totalCon);
-  };
+  const filas = lineas.map(l => ({ ...l, calc: lineaMO({ ...l, valorHora: (Number(l.valorHora)||0) + (Number(l.adicional)||0) }) }));
+  const total = filas.reduce((s, l) => s + l.calc.total, 0);
+  const horas = filas.reduce((s, l) => s + (l.horasDia||0)*(l.diasMes||0)*(l.meses||0)*(l.dotacion||0), 0);
 
-  const handlePrecioChange = (nombreMaterial, precio) => {
-    const preciosActualizados = { ...precios, [nombreMaterial]: parseFloat(precio) || 0 };
-    setPrecios(preciosActualizados);
-    localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
-    calcularTotales(materiales, preciosActualizados);
-  };
-
-  const handleCantidadChange = (nombreMaterial, nuevaCantidad) => {
-    const materialesActualizados = materiales.map(m =>
-      m.nombre === nombreMaterial ? { ...m, cantidad: parseFloat(nuevaCantidad) || 0 } : m
-    );
-    setMateriales(materialesActualizados);
-    calcularTotales(materialesActualizados, precios);
-  };
-
-  const handleImportarDatos = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    setCargando(true);
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(worksheet);
-
-      const preciosActualizados = { ...precios };
-      let actualizados = 0;
-
-      // Iterar filas (cada fila es un objeto con las columnas como keys)
-      rows.forEach(row => {
-        // Leer columnas del Excel
-        const descripcion = (row['Descripción'] || row['descripción'] || '').toString().trim();
-        const precioSinIva = parseFloat(row['P. sin IVA'] || row['P. sin Iva'] || row['P sin IVA'] || 0);
-
-        if (!descripcion || precioSinIva <= 0) return;
-
-        // Buscar coincidencia en materiales
-        const matEncontrado = materiales.find(m => 
-          m.nombre.toUpperCase() === descripcion.toUpperCase()
-        );
-
-        if (matEncontrado) {
-          preciosActualizados[matEncontrado.nombre] = precioSinIva;
-          actualizados++;
-          console.log(`✓ ${descripcion} → $${precioSinIva}`);
-        }
-      });
-
-      console.log(`✅ Importados ${actualizados}/${materiales.length} precios`);
-
-      setPrecios(preciosActualizados);
-      localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
-      calcularTotales(materiales, preciosActualizados);
-
-      alert(`✅ Excel importado.\nSe actualizaron ${actualizados} de ${materiales.length} precios.`);
-    } catch (error) {
-      console.error('Error al importar:', error);
-      alert('❌ Error al procesar el Excel.');
-    } finally {
-      setCargando(false);
-      event.target.value = '';
-    }
-  };
-
-  const handleCargarPdf = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    setCargando(true);
-    try {
-      const fileReader = new FileReader();
-      fileReader.onload = async (e) => {
-        const pdfData = e.target.result;
-        const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-
-        let materialesDelPdf = [];
-
-        // Extraer línea por línea
-        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-          const page = await pdf.getPage(pageNum);
-          const textContent = await page.getTextContent();
-          
-          // Agrupar items por Y para reconstruir líneas
-          const lineasMap = {};
-          textContent.items.forEach(item => {
-            const y = Math.round(item.y);
-            if (!lineasMap[y]) lineasMap[y] = [];
-            lineasMap[y].push(item.str);
-          });
-
-          // Procesar cada línea de arriba a abajo
-          Object.keys(lineasMap)
-            .sort((a, b) => b - a)
-            .forEach(y => {
-              const lineaCompleta = lineasMap[y].join(' ').trim();
-              
-              // Patrón específico del PDF Belgrano:
-              // XXXXX DESCRIPCIÓN ... CANT % $PRECIO $TOTAL
-              // Buscar: 5 dígitos al inicio + descripción + números + % + $
-              const match = lineaCompleta.match(/^(\d{5})\s+(.+?)\s+(\d{1,4})\s+(\d{1,2})%\s+\$[\d.]+/);
-              
-              if (match) {
-                const codigo = match[1];
-                let descripcion = match[2].trim().toUpperCase();
-                const cantidad = match[3];
-                const bonif = match[4];
-
-                // Extraer precio (el primero después del %)
-                const precioMatch = lineaCompleta.match(/(\d{1,2})%\s+\$([\d.]+)/);
-                if (!precioMatch) return;
-
-                const precioStr = precioMatch[2].replace(/\./g, '');
-                const precio = parseFloat(precioStr);
-
-                if (precio > 0 && descripcion.length > 3) {
-                  materialesDelPdf.push({
-                    codigo,
-                    descripcion,
-                    precio
-                  });
-                  console.log(`✓ ${codigo} | ${descripcion.substring(0, 60)} | $${precio}`);
-                }
-              }
-            });
-        }
-
-        console.log(`✅ Extraídos ${materialesDelPdf.length} precios del PDF`);
-
-        // Matching
-        const preciosActualizados = { ...precios };
-        let actualizados = 0;
-
-        materiales.forEach(mat => {
-          const nombreUpper = mat.nombre.toUpperCase();
-
-          // Búsqueda exacta
-          let encontrado = materialesDelPdf.find(p => 
-            p.descripcion === nombreUpper
-          );
-
-          if (encontrado) {
-            preciosActualizados[mat.nombre] = encontrado.precio;
-            actualizados++;
-            return;
-          }
-
-          // Búsqueda por contención
-          encontrado = materialesDelPdf.find(p => 
-            nombreUpper.includes(p.descripcion) || p.descripcion.includes(nombreUpper)
-          );
-
-          if (encontrado) {
-            preciosActualizados[mat.nombre] = encontrado.precio;
-            actualizados++;
-            return;
-          }
-        });
-
-        console.log(`✅ Actualizados: ${actualizados}/${materiales.length}`);
-
-        setPrecios(preciosActualizados);
-        localStorage.setItem(storageKeyPrecios, JSON.stringify(preciosActualizados));
-        calcularTotales(materiales, preciosActualizados);
-
-        alert(`✅ Se actualizaron ${actualizados} de ${materiales.length} precios.`);
-      };
-      fileReader.readAsArrayBuffer(file);
-    } catch (error) {
-      console.error('Error:', error);
-      alert('❌ Error al procesar el PDF.');
-    } finally {
-      setCargando(false);
-      event.target.value = '';
-    }
-  };
-  
   return (
-    <div style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
-          <h2 style={{ color: '#1c2d4f', marginTop: 0 }}>💲 Precios y Cotización</h2>
-          <p style={{ color: '#666' }}>Carga datos directamente o desde presupuesto PDF</p>
+    <>
+      <Head eyebrow="Paso 07" title="Mano de obra"
+            sub="Valor hora por categoría × horas por día × días por mes × meses × dotación." />
+
+      <div className="grid3" style={{ marginBottom: 16 }}>
+        <Kpi label="Total mano de obra" value={money(total)} hi />
+        <Kpi label="Horas-hombre" value={horas.toLocaleString('es-AR')} />
+        <Kpi label="Cuadrillas cargadas" value={lineas.length} />
+      </div>
+
+      <div className="card pad" style={{ marginBottom: 16 }}>
+        <div className="between" style={{ marginBottom: 12 }}>
+          <div>
+            <div className="eyebrow">Escala UOCRA · Zona A · julio 2026</div>
+            <p className="faint" style={{ fontSize: 11.5, margin: '4px 0 0' }}>
+              Valores de referencia. Editalos en la tabla cuando cambie la paritaria.
+            </p>
+          </div>
+          <label className="row" style={{ gap: 8 }}>
+            <span className="eyebrow" style={{ whiteSpace: 'nowrap' }}>Cargas sociales %</span>
+            <input type="number" step="0.1" className="num" style={{ width: 82 }}
+                   value={cargasGlobal} onChange={e => aplicarCargas(parseFloat(e.target.value) || 0)} />
+          </label>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <label style={{
-            background: '#8b5cf6',
-            color: 'white',
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: cargando ? 'not-allowed' : 'pointer',
-            fontWeight: '600',
-            opacity: cargando ? 0.6 : 1
-          }}>
-            📥 {cargando ? 'Importando...' : 'Importar Excel'}
-            <input
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleImportarDatos}
-              disabled={cargando}
-              style={{ display: 'none' }}
-            />
-          </label>
-          <label style={{
-            background: '#2563a8',
-            color: 'white',
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: cargando ? 'not-allowed' : 'pointer',
-            fontWeight: '600',
-            opacity: cargando ? 0.6 : 1
-          }}>
-            📤 {cargando ? 'Cargando...' : 'Cargar PDF'}
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={handleCargarPdf}
-              disabled={cargando}
-              style={{ display: 'none' }}
-            />
-          </label>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 7 }}>
+          {UOCRA.map(u => (
+            <button key={u.categoria} className="btn btn-sm" onClick={() => agregar(u)}>
+              + {u.categoria} <span className="num faint" style={{ marginLeft: 5 }}>{money(u.valorHora)}/h</span>
+            </button>
+          ))}
+          <button className="btn btn-sm" onClick={() => agregar()}>+ Categoría propia</button>
         </div>
       </div>
 
-      {materiales.length === 0 ? (
-        <p style={{ color: '#999', textAlign: 'center', padding: '40px' }}>
-          Sin materiales para cotizar
-        </p>
+      {lineas.length === 0 ? (
+        <div className="card"><Empty title="Sin mano de obra cargada">
+          Agregá las categorías que van a intervenir. Podés sumar el adicional de electricista sobre el básico.
+        </Empty></div>
       ) : (
-        <>
-          <div style={{ overflowX: 'auto', marginBottom: '24px' }}>
-            <table style={{
-              width: '100%',
-              borderCollapse: 'collapse'
-            }}>
-              <thead>
-                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#1c2d4f' }}>Material</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f' }}>Cantidad</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f' }}>Unidad</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f' }}>Precio Unit.</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#1c2d4f' }}>Total</th>
+        <div className="card pad" style={{ overflowX: 'auto' }}>
+          <table style={{ minWidth: 940 }}>
+            <thead><tr>
+              <th style={{ minWidth: 160 }}>Categoría</th>
+              <th className="r" style={{ width: 100 }}>$ hora</th>
+              <th className="r" style={{ width: 100 }}>+ Adicional</th>
+              <th className="r" style={{ width: 72 }}>Hs/día</th>
+              <th className="r" style={{ width: 78 }}>Días/mes</th>
+              <th className="r" style={{ width: 70 }}>Meses</th>
+              <th className="r" style={{ width: 78 }}>Dotación</th>
+              <th className="r" style={{ width: 100 }}>No remun.</th>
+              <th className="r" style={{ width: 120 }}>Total</th>
+              <th style={{ width: 60 }}></th>
+            </tr></thead>
+            <tbody>
+              {filas.map(l => (
+                <tr key={l.id}>
+                  <td><input value={l.categoria} placeholder="Categoría"
+                        onChange={e => editar(l.id, 'categoria', e.target.value)} /></td>
+                  <td><input type="number" className="num" value={l.valorHora} onChange={e => editar(l.id, 'valorHora', e.target.value)} /></td>
+                  <td><input type="number" className="num" value={l.adicional} placeholder="0"
+                        onChange={e => editar(l.id, 'adicional', e.target.value)} /></td>
+                  <td><input type="number" className="num" value={l.horasDia} onChange={e => editar(l.id, 'horasDia', e.target.value)} /></td>
+                  <td><input type="number" className="num" value={l.diasMes} onChange={e => editar(l.id, 'diasMes', e.target.value)} /></td>
+                  <td><input type="number" step="0.5" className="num" value={l.meses} onChange={e => editar(l.id, 'meses', e.target.value)} /></td>
+                  <td><input type="number" className="num" value={l.dotacion} onChange={e => editar(l.id, 'dotacion', e.target.value)} /></td>
+                  <td><input type="number" className="num" value={l.noRemunerativo} onChange={e => editar(l.id, 'noRemunerativo', e.target.value)} /></td>
+                  <td className="r num" style={{ color: 'var(--lime)' }}>{money(l.calc.total)}</td>
+                  <td className="r"><button className="btn-danger"
+                        onClick={() => guardar(lineas.filter(x => x.id !== l.id))}>Quitar</button></td>
                 </tr>
-              </thead>
-              <tbody>
-                {materiales.map((material, idx) => {
-                  const precio = precios[material.nombre] || 0;
-                  const total = material.cantidad * precio;
-                  return (
-                    <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '12px', color: '#1c2d4f', fontWeight: '500' }}>{material.nombre}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={material.cantidad || ''}
-                          onChange={(e) => handleCantidadChange(material.nombre, e.target.value)}
-                          style={{
-                            width: '80px',
-                            padding: '6px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '4px',
-                            textAlign: 'center',
-                            fontSize: '12px'
-                          }}
-                        />
-                      </td>
-                      <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>{material.unidad}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={precio || ''}
-                          onChange={(e) => handlePrecioChange(material.nombre, e.target.value)}
-                          placeholder="$"
-                          style={{
-                            width: '100px',
-                            padding: '6px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '4px',
-                            textAlign: 'center',
-                            fontSize: '12px'
-                          }}
-                        />
-                      </td>
-                      <td style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#2563a8' }}>
-                        ${total.toFixed(2)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* TOTALES */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-              <p style={{ margin: '0 0 8px 0', color: '#999', fontSize: '12px', fontWeight: '600' }}>TOTAL SIN IVA</p>
-              <h3 style={{ margin: 0, color: '#1c2d4f', fontSize: '20px' }}>${totalSinIva.toFixed(2)}</h3>
-            </div>
-            <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-              <p style={{ margin: '0 0 8px 0', color: '#999', fontSize: '12px', fontWeight: '600' }}>IVA 21%</p>
-              <h3 style={{ margin: 0, color: '#1c2d4f', fontSize: '20px' }}>${totalIva.toFixed(2)}</h3>
-            </div>
-            <div style={{ background: 'linear-gradient(135deg, #1c2d4f 0%, #2563a8 100%)', padding: '16px', borderRadius: '8px', color: 'white' }}>
-              <p style={{ margin: '0 0 8px 0', opacity: 0.9, fontSize: '12px', fontWeight: '600' }}>TOTAL CON IVA</p>
-              <h3 style={{ margin: 0, fontSize: '20px' }}>${totalConIva.toFixed(2)}</h3>
-            </div>
-          </div>
-        </>
+              ))}
+              <tr>
+                <td colSpan={8} className="eyebrow" style={{ textAlign: 'right' }}>Total mano de obra</td>
+                <td className="r num" style={{ color: 'var(--lime)', fontWeight: 700 }}>{money(total)}</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="faint" style={{ fontSize: 11.5, marginTop: 12 }}>
+            Cada línea: (hora + adicional) × hs/día × días/mes × meses × dotación, más la suma no remunerativa
+            por mes y por persona, más {cargasGlobal}% de cargas sociales sobre el remunerativo.
+          </p>
+        </div>
       )}
-    </div>
+    </>
   );
 }
