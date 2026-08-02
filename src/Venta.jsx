@@ -24,13 +24,27 @@ export default function Venta({ proyectoId, onCambio }) {
     <div className={'casc-row' + (sub ? ' sub' : '') + (total ? ' total' : '')}>
       <div className="casc-lbl">{label}{pct != null && <span className="faint num" style={{ marginLeft: 7, fontSize: 11.5 }}>{pct}</span>}</div>
       <div className="casc-val">{money(valor)}</div>
-      <div className="casc-bar"><i style={{ width: `${Math.min(100, Math.max(1, valor / max * 100))}%` }} /></div>
+      <div className="casc-bar"><i style={{ width: `${Math.min(100, Math.max(1, Math.abs(valor) / max * 100))}%`, background: valor < 0 ? 'var(--amber)' : undefined }} /></div>
     </div>
   );
 
   const Pct = ({ label, k, hint }) => (
     <label className="f"><span>{label}{hint && <em className="faint" style={{ fontStyle:'normal' }}> · {hint}</em>}</span>
       <input type="number" step="0.1" className="num" value={cfg[k]} onChange={e => set(k, e.target.value)} /></label>
+  );
+
+  const Libre = ({ nombre, tipo, valor, signo }) => (
+    <div style={{ display:'grid', gridTemplateColumns:'22px 1fr 110px 130px', gap:9, alignItems:'center' }}>
+      <span className="num" style={{ color: signo === '−' ? 'var(--amber)' : 'var(--text-faint)', textAlign:'center' }}>{signo}</span>
+      <input value={cfg[nombre] || ''} placeholder="Nombre del concepto"
+             onChange={e => guardar({ ...cfg, [nombre]: e.target.value })} />
+      <select value={cfg[tipo]} onChange={e => guardar({ ...cfg, [tipo]: e.target.value })}>
+        <option value="monto">Monto $</option>
+        <option value="pct">% del neto</option>
+      </select>
+      <input type="number" step="0.01" className="num" value={cfg[valor] ?? 0}
+             onChange={e => guardar({ ...cfg, [valor]: parseFloat(String(e.target.value).replace(',', '.')) || 0 })} />
+    </div>
   );
 
   return (
@@ -57,6 +71,12 @@ export default function Venta({ proyectoId, onCambio }) {
           <Fila label="Total neto" valor={c.totalNeto} total />
           <Fila label="Ingresos brutos" valor={c.iibb} pct={`${cfg.pctIIBB}% del total neto`} sub />
           <Fila label="Gastos bancarios" valor={c.bancarios} pct={`${cfg.pctBancarios}% del total neto`} sub />
+          {c.descuento !== 0 && <Fila label={cfg.descNombre || 'Descuento'} valor={-c.descuento}
+                pct={cfg.descTipo === 'pct' ? `${cfg.descValor}% del total neto` : 'monto fijo'} sub />}
+          {c.og1 !== 0 && <Fila label={cfg.og1Nombre || 'Otros gastos 1'} valor={c.og1}
+                pct={cfg.og1Tipo === 'pct' ? `${cfg.og1Valor}% del total neto` : 'monto fijo'} sub />}
+          {c.og2 !== 0 && <Fila label={cfg.og2Nombre || 'Otros gastos 2'} valor={c.og2}
+                pct={cfg.og2Tipo === 'pct' ? `${cfg.og2Valor}% del total neto` : 'monto fijo'} sub />}
           <Fila label="Precio de venta sin IVA" valor={c.ventaSinIVA} total />
         </div>
         <hr className="hr" />
@@ -83,6 +103,17 @@ export default function Venta({ proyectoId, onCambio }) {
         </div>
         <div className="grid4">
           <Pct label="IVA %" k="pctIVA" />
+        </div>
+
+        <hr className="hr" />
+        <div className="eyebrow" style={{ marginBottom: 4 }}>Ajustes sobre el total neto</div>
+        <p className="faint" style={{ fontSize: 11.5, margin: '0 0 14px' }}>
+          El primero resta, los otros dos suman. Poneles el nombre que quieras y elegí si es un monto o un porcentaje.
+        </p>
+        <div className="stack" style={{ gap: 10 }}>
+          <Libre nombre="descNombre" tipo="descTipo" valor="descValor" signo="−" />
+          <Libre nombre="og1Nombre"  tipo="og1Tipo"  valor="og1Valor"  signo="+" />
+          <Libre nombre="og2Nombre"  tipo="og2Tipo"  valor="og2Valor"  signo="+" />
         </div>
       </div>
     </>

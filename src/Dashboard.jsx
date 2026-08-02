@@ -16,7 +16,7 @@ export default function Dashboard() {
 
   const crear = e => {
     e.preventDefault();
-    if (!nombre.trim()) return;
+    if (!nombre.trim()) { toast('Poné un nombre para la obra.', true); return; }
     const p = crearProyecto(nombre.trim(), cliente.trim());
     setLista(listarProyectos());
     setNombre(''); setCliente(''); setForm(false);
@@ -74,7 +74,7 @@ export default function Dashboard() {
         <form onSubmit={crear} className="card pad" style={{ marginBottom: 18 }}>
           <div className="grid2" style={{ marginBottom: 14 }}>
             <label className="f"><span>Nombre de la obra</span>
-              <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Hotel Las Compuertas" autoFocus /></label>
+              <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Hotel Las Compuertas" required autoFocus /></label>
             <label className="f"><span>Cliente</span>
               <input value={cliente} onChange={e => setCliente(e.target.value)} placeholder="AESA" /></label>
           </div>

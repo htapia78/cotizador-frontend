@@ -81,11 +81,16 @@ export function cascada(materiales, manoObra, c) {
   const totalNeto   = costoNeto + imprevistos + beneficio;
   const iibb        = totalNeto * (c.pctIIBB / 100);
   const bancarios   = totalNeto * (c.pctBancarios / 100);
-  const ventaSinIVA = totalNeto + iibb + bancarios;
+  // tres líneas libres sobre el total neto: una resta, dos suman
+  const linea = (tipo, valor) => tipo === 'pct' ? totalNeto * ((Number(valor)||0) / 100) : (Number(valor)||0);
+  const descuento = linea(c.descTipo, c.descValor);
+  const og1       = linea(c.og1Tipo,  c.og1Valor);
+  const og2       = linea(c.og2Tipo,  c.og2Valor);
+  const ventaSinIVA = totalNeto + iibb + bancarios - descuento + og1 + og2;
   const iva         = ventaSinIVA * (c.pctIVA / 100);
   return {
     materiales, manoObra, baseEstr, estructura, costoNeto,
-    imprevistos, beneficio, totalNeto, iibb, bancarios,
+    imprevistos, beneficio, totalNeto, iibb, bancarios, descuento, og1, og2,
     ventaSinIVA, iva, ventaConIVA: ventaSinIVA + iva,
     margenSobreCosto: costoNeto ? (ventaSinIVA - costoNeto) / costoNeto * 100 : 0,
   };
@@ -94,6 +99,8 @@ export function cascada(materiales, manoObra, c) {
 export const resumen = id => {
   const c = get(K.config(id), {});
   const cfg = { baseEstructura:'mo', pctEstructura:13, pctImprevistos:7, pctBeneficio:45,
-                pctIIBB:2, pctBancarios:1.8, pctIVA:21, ...c };
+                pctIIBB:2, pctBancarios:1.8, pctIVA:21,
+                descTipo:'pct', descValor:0, og1Tipo:'monto', og1Valor:0,
+                og2Tipo:'monto', og2Valor:0, ...c };
   return cascada(totalMateriales(id), totalManoObra(id), cfg);
 };
