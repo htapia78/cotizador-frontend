@@ -12,6 +12,12 @@ const H = (t, lvl = HeadingLevel.HEADING_1) => new Paragraph({ text: t, heading:
 const bullets = txt => (txt || '').split('\n').map(l => l.trim()).filter(Boolean)
   .map(l => new Paragraph({ children: [T(l)], bullet: { level: 0 }, spacing: { after: 70 } }));
 
+const Area = ({ label, k, ph, rows = 5, cfg, set }) => (
+  <label className="f"><span>{label}</span>
+    <textarea rows={rows} value={cfg[k] || ''} placeholder={ph}
+      onChange={e => set(k, e.target.value)} style={{ resize:'vertical', lineHeight:1.6 }} /></label>
+);
+
 export default function Propuesta({ proyectoId, proyecto, onCambio }) {
   const [cfg, setCfg] = useState(() => getConfig(proyectoId));
   const [toast, toastNode] = useToast();
@@ -112,12 +118,6 @@ export default function Propuesta({ proyectoId, proyecto, onCambio }) {
     toast('Propuesta descargada. Abrila en Word para ajustar lo que quieras.');
   };
 
-  const Area = ({ label, k, ph, rows = 5 }) => (
-    <label className="f"><span>{label}</span>
-      <textarea rows={rows} value={cfg[k] || ''} placeholder={ph}
-        onChange={e => set(k, e.target.value)} style={{ resize:'vertical', lineHeight:1.6 }} /></label>
-  );
-
   return (
     <>
       <Head eyebrow="Paso 09" title="Propuesta comercial"
@@ -178,11 +178,11 @@ export default function Propuesta({ proyectoId, proyecto, onCambio }) {
           </div>
         </div>
         <div className="stack">
-          <Area label="Alcance — una línea por ítem" k="alcance"
+          <Area cfg={cfg} set={set} label="Alcance — una línea por ítem" k="alcance"
                 ph={'Materiales computados según planos provistos\nProvisión de tableros eléctricos completos\nPruebas y mediciones correspondientes\nMano de obra instalación eléctrica'} />
-          <Area label="No incluido — una línea por ítem" k="exclusiones"
+          <Area cfg={cfg} set={set} label="No incluido — una línea por ítem" k="exclusiones"
                 ph={'Obra civil de ningún tipo ni materiales asociados\nArtefactos de iluminación y sus accesorios\nAforos ni tasas municipales'} />
-          <Area label="Notas" k="notas" rows={3} ph="Aclaraciones que quieras dejar asentadas." />
+          <Area cfg={cfg} set={set} label="Notas" k="notas" rows={3} ph="Aclaraciones que quieras dejar asentadas." />
         </div>
       </div>
       {toastNode}
